@@ -41,5 +41,5 @@ export const api = {
   getFplNews:        ()         => req("/fpl/news"),
   getFplFixtures:    (event)    => req(`/fpl/fixtures${event ? "?event=" + event : ""}`),
   getPlTable:        ()         => req("/pl/table"),
-  getPlayerDetail:   (playerId) => req(`/player/${playerId}`),  // ← ADD THIS
+  getPlayerDetail:   (playerId) => req(`/players/${playerId}`),  // ← ADD THIS
 };
