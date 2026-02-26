@@ -808,3 +808,23 @@ def get_player_detail(player_id: int):
         "history":         gw_history,
         "fixtures":        next_fixtures,
     }
+@app.get("/api/debug/player-match/{player_id}")
+def debug_player_match(player_id: int):
+    preds    = get_predictions()
+    pred_row = preds[preds["player_id"] == player_id]
+    
+    boot     = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
+    elements = pd.DataFrame(boot["elements"])
+    
+    web_name = pred_row.iloc[0]["web_name"] if not pred_row.empty else None
+    fpl_row  = elements[elements["web_name"] == web_name] if web_name else pd.DataFrame()
+    
+    return {
+        "player_id_searched": player_id,
+        "found_in_csv":       not pred_row.empty,
+        "web_name_in_csv":    web_name,
+        "found_in_fpl_api":   not fpl_row.empty,
+        "fpl_id":             int(fpl_row.iloc[0]["id"]) if not fpl_row.empty else None,
+        "sample_csv_ids":     preds["player_id"].head(5).tolist(),
+        "sample_fpl_ids":     elements["id"].head(5).tolist(),
+    }
