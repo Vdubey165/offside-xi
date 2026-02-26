@@ -716,7 +716,7 @@ def pl_table():
     return ranked
 
 
-@app.get("/api/player/{player_id}")
+@app.get("/api/players/{player_id}")
 def get_player_detail(player_id: int):
     """
     Full player detail: season stats, last 5 GW history, next 5 fixtures.
