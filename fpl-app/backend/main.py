@@ -714,3 +714,88 @@ def pl_table():
         row["position"] = i + 1
 
     return ranked
+
+
+@app.get("/api/player/{player_id}")
+def get_player_detail(player_id: int):
+    """
+    Full player detail: season stats, last 5 GW history, next 5 fixtures.
+    Combines bootstrap-static + element-summary from the FPL API.
+    """
+    BASE_URL = "https://fantasy.premierleague.com/api"
+    try:
+        boot = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
+    except Exception as e:
+        raise HTTPException(500, f"Could not fetch FPL data: {e}")
+
+    # Find the player in bootstrap
+    elements = pd.DataFrame(boot["elements"])
+    teams    = pd.DataFrame(boot["teams"])
+    team_map = teams.set_index("id")["name"].to_dict()
+    short_map= teams.set_index("id")["short_name"].to_dict()
+
+    row = elements[elements["id"] == player_id]
+    if row.empty:
+        raise HTTPException(404, f"Player {player_id} not found")
+    p = row.iloc[0]
+
+    # Fetch element summary (history + fixtures)
+    try:
+        summary  = requests.get(f"{BASE_URL}/element-summary/{player_id}/", timeout=10).json()
+        history  = summary.get("history", [])
+        fixtures = summary.get("fixtures", [])
+    except Exception:
+        history  = []
+        fixtures = []
+
+    # Build last 5 GW history
+    gw_history = [
+        {
+            "round":        h["round"],
+            "total_points": h["total_points"],
+            "minutes":      h["minutes"],
+            "goals_scored": h["goals_scored"],
+            "assists":      h["assists"],
+            "clean_sheets": h["clean_sheets"],
+            "bonus":        h["bonus"],
+        }
+        for h in history[-5:]
+    ]
+
+    # Build next 5 fixtures
+    next_fixtures = []
+    for fx in fixtures[:5]:
+        opp_id   = fx.get("team_a") if fx.get("is_home") else fx.get("team_h")
+        opp_name = team_map.get(opp_id, short_map.get(opp_id, "?"))
+        next_fixtures.append({
+            "event":      fx.get("event"),
+            "opponent":   opp_name,
+            "is_home":    fx.get("is_home"),
+            "difficulty": fx.get("difficulty"),
+        })
+
+    pos_map = {1:"GK", 2:"DEF", 3:"MID", 4:"FWD"}
+
+    return {
+        "player_id":       int(p["id"]),
+        "web_name":        p["web_name"],
+        "full_name":       f"{p['first_name']} {p['second_name']}",
+        "team_name":       team_map.get(int(p["team"]), ""),
+        "position":        pos_map.get(int(p["element_type"]), ""),
+        "price":           round(float(p["now_cost"]) / 10, 1),
+        "status":          p["status"],
+        "news":            p["news"] if p.get("news") else None,
+        # Season stats
+        "total_points":    int(p["total_points"]),
+        "goals_scored":    int(p["goals_scored"]),
+        "assists":         int(p["assists"]),
+        "clean_sheets":    int(p["clean_sheets"]),
+        "bonus":           int(p["bonus"]),
+        "minutes":         int(p["minutes"]),
+        "selected_by_pct": p.get("selected_by_percent") or p.get("selected_by_pct"),
+        "form":            p.get("form"),
+        "points_per_game": p.get("points_per_game"),
+        # History + fixtures
+        "history":         gw_history,
+        "fixtures":        next_fixtures,
+    }
