@@ -79,13 +79,12 @@ export default function PlayerPanel({ player, onClose }) {
   const [error,   setError]   = useState(null);
 
   useEffect(() => {
-    if (!player) return;
-    setLoading(true); setDetail(null); setError(null);
-    
-  }, [player?.player_id]);
-api.getPlayerDetail(player.player_id)
-  .then(d => { setDetail(d); setLoading(false); })
-  .catch(e => { setError(e.message); setLoading(false); });
+  if (!player) return;
+  setLoading(true); setDetail(null); setError(null);
+  api.getPlayerDetail(player.player_id)
+    .then(d => { setDetail(d); setLoading(false); })
+    .catch(e => { setError(e.message); setLoading(false); });
+}, [player]);  // ← just `player` not `player?.player_id`
 
   if (!player) return null;
 
