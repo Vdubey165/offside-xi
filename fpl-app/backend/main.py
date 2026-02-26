@@ -728,20 +728,31 @@ def get_player_detail(player_id: int):
     except Exception as e:
         raise HTTPException(500, f"Could not fetch FPL data: {e}")
 
-    # Find the player in bootstrap
-    elements = pd.DataFrame(boot["elements"])
-    teams    = pd.DataFrame(boot["teams"])
-    team_map = teams.set_index("id")["name"].to_dict()
-    short_map= teams.set_index("id")["short_name"].to_dict()
+    elements  = pd.DataFrame(boot["elements"])
+    teams     = pd.DataFrame(boot["teams"])
+    team_map  = teams.set_index("id")["name"].to_dict()
+    short_map = teams.set_index("id")["short_name"].to_dict()
 
+    # Try direct FPL ID first
     row = elements[elements["id"] == player_id]
+
+    # Fallback: match via predictions CSV web_name
+    if row.empty:
+        preds    = get_predictions()
+        pred_row = preds[preds["player_id"] == player_id]
+        if not pred_row.empty:
+            web_name = pred_row.iloc[0]["web_name"]
+            row      = elements[elements["web_name"] == web_name]
+
     if row.empty:
         raise HTTPException(404, f"Player {player_id} not found")
+
     p = row.iloc[0]
 
     # Fetch element summary (history + fixtures)
+    fpl_id = int(p["id"])
     try:
-        summary  = requests.get(f"{BASE_URL}/element-summary/{player_id}/", timeout=10).json()
+        summary  = requests.get(f"{BASE_URL}/element-summary/{fpl_id}/", timeout=10).json()
         history  = summary.get("history", [])
         fixtures = summary.get("fixtures", [])
     except Exception:
@@ -785,7 +796,6 @@ def get_player_detail(player_id: int):
         "price":           round(float(p["now_cost"]) / 10, 1),
         "status":          p["status"],
         "news":            p["news"] if p.get("news") else None,
-        # Season stats
         "total_points":    int(p["total_points"]),
         "goals_scored":    int(p["goals_scored"]),
         "assists":         int(p["assists"]),
@@ -795,7 +805,6 @@ def get_player_detail(player_id: int):
         "selected_by_pct": p.get("selected_by_percent") or p.get("selected_by_pct"),
         "form":            p.get("form"),
         "points_per_game": p.get("points_per_game"),
-        # History + fixtures
         "history":         gw_history,
         "fixtures":        next_fixtures,
     }
