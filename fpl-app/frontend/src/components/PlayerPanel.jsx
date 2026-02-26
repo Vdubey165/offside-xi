@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-
+import { api } from "../api/client";
 const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
 
 const FDR_COLOR = {
@@ -81,11 +81,11 @@ export default function PlayerPanel({ player, onClose }) {
   useEffect(() => {
     if (!player) return;
     setLoading(true); setDetail(null); setError(null);
-    fetch(`${BASE}/player/${player.player_id}`)
-      .then(r => r.json())
-      .then(d => { setDetail(d); setLoading(false); })
-      .catch(e => { setError(e.message); setLoading(false); });
+    
   }, [player?.player_id]);
+api.getPlayerDetail(player.player_id)
+  .then(d => { setDetail(d); setLoading(false); })
+  .catch(e => { setError(e.message); setLoading(false); });
 
   if (!player) return null;
 
