@@ -25,6 +25,8 @@ async function req(path, options = {}) {
   return res.json();
 }
 
+
+
 export const api = {
   getPlayers: (params = {}) => {
     const qs = new URLSearchParams(
@@ -32,11 +34,12 @@ export const api = {
     ).toString();
     return req(`/players${qs ? "?" + qs : ""}`);
   },
-  getModelInsights:  ()       => req("/model/insights"),
-  optimizeSquad:     (budget) => req("/squad/optimize",    { method: "POST", body: JSON.stringify({ budget }) }),
-  fetchSquad:        (teamId) => req(`/transfers/squad/${teamId}`),
-  optimizeTransfers: (body)   => req("/transfers/optimize", { method: "POST", body: JSON.stringify(body) }),
-  getFplNews:        ()       => req("/fpl/news"),
-  getFplFixtures:    (event)  => req(`/fpl/fixtures${event ? "?event=" + event : ""}`),
-  getPlTable:        ()       => req("/pl/table"),
+  getModelInsights:  ()         => req("/model/insights"),
+  optimizeSquad:     (budget)   => req("/squad/optimize",    { method: "POST", body: JSON.stringify({ budget }) }),
+  fetchSquad:        (teamId)   => req(`/transfers/squad/${teamId}`),
+  optimizeTransfers: (body)     => req("/transfers/optimize", { method: "POST", body: JSON.stringify(body) }),
+  getFplNews:        ()         => req("/fpl/news"),
+  getFplFixtures:    (event)    => req(`/fpl/fixtures${event ? "?event=" + event : ""}`),
+  getPlTable:        ()         => req("/pl/table"),
+  getPlayerDetail:   (playerId) => req(`/player/${playerId}`),  // ← ADD THIS
 };
