@@ -443,10 +443,19 @@ export default function MainPitch() {
   useEffect(() => {
     if (!swapping) { setPosPlayers([]); return; }
     setLoadingPlayers(true);
-    api.getPlayersByPosition(swapping.position)
-      .then(data => { const list = Array.isArray(data) ? data : (data.players||[]); setPosPlayers(list); })
-      .catch(() => setPosPlayers([]))
-      .finally(() => setLoadingPlayers(false));
+    const fetchWithRetry = (retriesLeft) => {
+      api.getPlayersByPosition(swapping.position)
+        .then(data => {
+          const list = Array.isArray(data) ? data : (data.players || []);
+          setPosPlayers(list);
+          setLoadingPlayers(false);
+        })
+        .catch(() => {
+          if (retriesLeft > 0) setTimeout(() => fetchWithRetry(retriesLeft - 1), 5000);
+          else { setPosPlayers([]); setLoadingPlayers(false); }
+        });
+    };
+    fetchWithRetry(3);
   }, [swapping?.player_id]);
 
   const startChallenge = useCallback(() => {
