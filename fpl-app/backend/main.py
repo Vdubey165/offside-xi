@@ -387,7 +387,7 @@ def optimize_squad(req: OptimizeRequest):
     squad    = _run_squad_ilp(df, budget_raw)
     starters = squad[squad["is_starter"] == True]
     bench    = squad[squad["is_starter"] == False]
-    cols     = ["web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
+    cols     = ["player_id","web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
 
     starters_sorted   = starters.sort_values("predicted_pts", ascending=False)
     captain_name      = starters_sorted.iloc[0]["web_name"]
