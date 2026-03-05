@@ -58,11 +58,15 @@ app = FastAPI(title="FPL AI Decision Engine", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "https://offside-xi.vercel.app","*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000", 
+        "https://offside-xi.vercel.app",
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 FEATURES = [
     "avg_pts_last3", "avg_pts_last5", "form_trend",
     "avg_minutes_last3", "avg_xgi_last3", "avg_ict_last3",
