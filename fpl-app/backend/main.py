@@ -60,13 +60,16 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "http://localhost:3000", 
+        "http://localhost:3000",
         "https://offside-xi.vercel.app",
+        "https://offside-xi-git-main-vaibhavs-projects.vercel.app",
+        "*",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 FEATURES = [
     "avg_pts_last3", "avg_pts_last5", "form_trend",
     "avg_minutes_last3", "avg_xgi_last3", "avg_ict_last3",
@@ -869,7 +872,7 @@ def get_db():
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(pw: str) -> str:
-    return pwd_ctx.hash(pw)
+    return pwd_ctx.hash(pw[:72])
 
 def verify_password(pw: str, hashed: str) -> bool:
     return pwd_ctx.verify(pw, hashed)
