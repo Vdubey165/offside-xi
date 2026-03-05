@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../api/client";
+import { useAuth } from "../hooks/useAuth.jsx";
 
 const LockIcon   = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 const UnlockIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>;
 const CloseIcon  = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 
 export default function TransferPlanner() {
+  const { user } = useAuth();
   const [teamId,       setTeamId]       = useState("");
   const [squadData,    setSquadData]    = useState(null);
   const [freeTf,       setFreeTf]       = useState(1);
@@ -14,6 +16,13 @@ export default function TransferPlanner() {
   const [loadingSquad, setLoadingSquad] = useState(false);
   const [loadingOpt,   setLoadingOpt]   = useState(false);
   const [error,        setError]        = useState(null);
+
+  // Auto-fill Team ID when user logs in
+  useEffect(() => {
+    if (user?.fpl_team_id) {
+      setTeamId(String(user.fpl_team_id));
+    }
+  }, [user?.fpl_team_id]);
 
   async function fetchSquad() {
     if (!teamId) return;
@@ -58,10 +67,17 @@ export default function TransferPlanner() {
             </span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <input className="input" placeholder="Team ID" value={teamId}
-              onChange={(e) => setTeamId(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && fetchSquad()}
-              style={{ flex: 1 }} />
+            <div style={{ flex: 1, position: "relative" }}>
+              <input className="input" placeholder="Team ID" value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && fetchSquad()}
+                style={{ width: "100%" }} />
+              {user?.fpl_team_id && String(user.fpl_team_id) === teamId && (
+                <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 9, fontWeight: 800, color: "rgba(5,240,255,0.7)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.06em", background: "rgba(5,240,255,0.08)", borderRadius: 4, padding: "2px 6px" }}>
+                  Saved
+                </div>
+              )}
+            </div>
             <button className="btn btn-primary" onClick={fetchSquad} disabled={!teamId || loadingSquad} style={{ minWidth: 110 }}>
               {loadingSquad ? <><div className="spinner" style={{width:13,height:13}} />Loading</> : "Load Squad"}
             </button>

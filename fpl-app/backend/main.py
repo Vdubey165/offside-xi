@@ -287,24 +287,17 @@ def debug():
 
 @app.get("/api/current-gw")
 def current_gw():
-    """Returns current GW, its deadline, and whether it has finished."""
+    """Returns the real current Premier League gameweek from the FPL API."""
     try:
         r       = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
         events  = pd.DataFrame(r["events"])
         current = events[events["is_current"] == True]
         if len(current):
-            row = current.iloc[0]
+            gw = int(current["id"].iloc[0])
         else:
-            finished_rows = events[events["finished"] == True]
-            row = finished_rows.loc[finished_rows["id"].idxmax()] if len(finished_rows) else events.iloc[0]
-        gw            = int(row["id"])
-        deadline_time = str(row.get("deadline_time", "")) or None
-        gw_finished   = bool(row.get("finished", False))
-        return {
-            "gameweek":      gw,
-            "deadline_time": deadline_time,
-            "gw_finished":   gw_finished,
-        }
+            finished = events[events["finished"] == True]
+            gw = int(finished["id"].max()) if len(finished) else 1
+        return {"gameweek": gw}
     except Exception as e:
         raise HTTPException(500, f"Could not fetch current gameweek: {e}")
 
@@ -387,7 +380,7 @@ def optimize_squad(req: OptimizeRequest):
     squad    = _run_squad_ilp(df, budget_raw)
     starters = squad[squad["is_starter"] == True]
     bench    = squad[squad["is_starter"] == False]
-    cols     = ["player_id", "web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
+    cols     = ["web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
 
     starters_sorted   = starters.sort_values("predicted_pts", ascending=False)
     captain_name      = starters_sorted.iloc[0]["web_name"]
@@ -835,3 +828,189 @@ def debug_player_match(player_id: int):
         "sample_csv_ids":     preds["player_id"].head(5).tolist(),
         "sample_fpl_ids":     elements["id"].head(5).tolist(),
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH & USER ROUTES — MongoDB + JWT
+# ══════════════════════════════════════════════════════════════════════════════
+
+from datetime import datetime, timedelta
+from fastapi import Depends, Header
+from pymongo import MongoClient
+from pymongo.errors import DuplicateKeyError
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+
+# ── Config ────────────────────────────────────────────────────────────────────
+MONGO_URI   = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+JWT_SECRET  = os.environ.get("JWT_SECRET", "offside_xi_secret_change_in_prod")
+JWT_ALG     = "HS256"
+JWT_EXPIRE  = 30  # days
+
+# ── MongoDB client (lazy init) ────────────────────────────────────────────────
+_mongo_client = None
+_db           = None
+
+def get_db():
+    global _mongo_client, _db
+    if _db is None:
+        _mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        _db = _mongo_client["offside_xi"]
+        # Indexes
+        _db.users.create_index("email", unique=True)
+        _db.challenge_history.create_index([("user_id", 1), ("gw", 1)])
+    return _db
+
+# ── Password hashing ──────────────────────────────────────────────────────────
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(pw: str) -> str:
+    return pwd_ctx.hash(pw)
+
+def verify_password(pw: str, hashed: str) -> bool:
+    return pwd_ctx.verify(pw, hashed)
+
+# ── JWT helpers ───────────────────────────────────────────────────────────────
+def create_token(user_id: str, email: str) -> str:
+    payload = {
+        "sub":   user_id,
+        "email": email,
+        "exp":   datetime.utcnow() + timedelta(days=JWT_EXPIRE),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
+
+def decode_token(token: str) -> dict:
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+    except JWTError:
+        raise HTTPException(401, "Invalid or expired token")
+
+def get_current_user(authorization: str = Header(None)) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Not authenticated")
+    return decode_token(authorization.split(" ")[1])
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    email:    str
+    password: str
+    name:     Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email:    str
+    password: str
+
+class ProfileUpdateRequest(BaseModel):
+    fpl_team_id: Optional[int]   = None
+    name:        Optional[str]   = None
+
+class ChallengeResultRequest(BaseModel):
+    gw:         int
+    model_pts:  float
+    user_pts:   float
+    user_swaps: Optional[list]   = []
+
+class CommunityJoinRequest(BaseModel):
+    email: str
+    city:  str
+    role:  str
+
+# ── Auth routes ───────────────────────────────────────────────────────────────
+@app.post("/api/auth/register")
+def register(req: RegisterRequest):
+    db = get_db()
+    if not req.email or "@" not in req.email:
+        raise HTTPException(400, "Invalid email")
+    if not req.password or len(req.password) < 6:
+        raise HTTPException(400, "Password must be at least 6 characters")
+    try:
+        result = db.users.insert_one({
+            "email":        req.email.lower().strip(),
+            "password":     hash_password(req.password),
+            "name":         req.name or req.email.split("@")[0],
+            "fpl_team_id":  None,
+            "created_at":   datetime.utcnow(),
+        })
+        user_id = str(result.inserted_id)
+        token   = create_token(user_id, req.email)
+        return {
+            "token": token,
+            "user":  { "id": user_id, "email": req.email, "name": req.name or req.email.split("@")[0], "fpl_team_id": None }
+        }
+    except DuplicateKeyError:
+        raise HTTPException(409, "Email already registered")
+
+@app.post("/api/auth/login")
+def login(req: LoginRequest):
+    db   = get_db()
+    user = db.users.find_one({"email": req.email.lower().strip()})
+    if not user or not verify_password(req.password, user["password"]):
+        raise HTTPException(401, "Invalid email or password")
+    user_id = str(user["_id"])
+    token   = create_token(user_id, user["email"])
+    return {
+        "token": token,
+        "user":  { "id": user_id, "email": user["email"], "name": user.get("name",""), "fpl_team_id": user.get("fpl_team_id") }
+    }
+
+@app.get("/api/user/profile")
+def get_profile(current_user: dict = Depends(get_current_user)):
+    from bson import ObjectId
+    db   = get_db()
+    user = db.users.find_one({"_id": ObjectId(current_user["sub"])})
+    if not user:
+        raise HTTPException(404, "User not found")
+    history = list(db.challenge_history.find(
+        {"user_id": current_user["sub"]},
+        {"_id": 0}
+    ).sort("gw", 1))
+    return {
+        "id":          current_user["sub"],
+        "email":       user["email"],
+        "name":        user.get("name", ""),
+        "fpl_team_id": user.get("fpl_team_id"),
+        "history":     history,
+    }
+
+@app.put("/api/user/profile")
+def update_profile(req: ProfileUpdateRequest, current_user: dict = Depends(get_current_user)):
+    from bson import ObjectId
+    db      = get_db()
+    updates = {}
+    if req.fpl_team_id is not None: updates["fpl_team_id"] = req.fpl_team_id
+    if req.name is not None:        updates["name"]        = req.name
+    if not updates:
+        raise HTTPException(400, "Nothing to update")
+    db.users.update_one({"_id": ObjectId(current_user["sub"])}, {"$set": updates})
+    return {"ok": True}
+
+@app.post("/api/user/challenge")
+def save_challenge_result(req: ChallengeResultRequest, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    db.challenge_history.update_one(
+        {"user_id": current_user["sub"], "gw": req.gw},
+        {"$set": {
+            "user_id":    current_user["sub"],
+            "gw":         req.gw,
+            "model_pts":  req.model_pts,
+            "user_pts":   req.user_pts,
+            "user_swaps": req.user_swaps,
+            "saved_at":   datetime.utcnow(),
+        }},
+        upsert=True
+    )
+    return {"ok": True}
+
+@app.post("/api/community/join")
+def community_join(req: CommunityJoinRequest):
+    db = get_db()
+    existing = db.community.find_one({"email": req.email.lower().strip()})
+    if existing:
+        return {"ok": True, "message": "Already registered"}
+    db.community.insert_one({
+        "email":     req.email.lower().strip(),
+        "city":      req.city,
+        "role":      req.role,
+        "joined_at": datetime.utcnow(),
+    })
+    return {"ok": True, "message": "Welcome to the community!"}

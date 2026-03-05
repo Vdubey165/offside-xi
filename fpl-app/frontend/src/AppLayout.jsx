@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useGameweek } from "./hooks/useGameweek";
+import { AuthProvider, useAuth } from "./hooks/useAuth";
+import AuthModal from "./components/AuthModal";
 
 // ─── REAL COMPONENT IMPORTS ───────────────────────────────────────────────────
 import SidebarLeft     from "./components/SidebarLeft";
@@ -25,9 +27,11 @@ const NAV = [
 ];
 
 // ─── FPL-STYLE TOPBAR ─────────────────────────────────────────────────────────
-function Topbar({ active, setActive }) {
+function Topbar({ active, setActive, onAuthClick }) {
   const { gw, loading } = useGameweek();
+  const { user, logout } = useAuth();
   const gwLabel = loading ? "···" : gw ? `Gameweek ${gw}` : "Premier League";
+  const [showUserMenu, setShowUserMenu] = useState(false);
   return (
     <header style={{
       height:52, flexShrink:0,
@@ -171,15 +175,61 @@ function Topbar({ active, setActive }) {
             Budget
           </div>
         </div>
+
+        {/* Auth button */}
+        <div style={{ position: "relative" }}>
+          {user ? (
+            <>
+              <button onClick={() => setShowUserMenu(v => !v)} style={{
+                display: "flex", alignItems: "center", gap: 7,
+                background: "rgba(5,240,255,0.1)",
+                border: "1px solid rgba(5,240,255,0.2)",
+                borderRadius: 8, padding: "5px 11px",
+                cursor: "pointer", transition: "all 0.15s",
+              }}>
+                <div style={{ width: 22, height: 22, borderRadius: "50%", background: "linear-gradient(135deg,#05f0ff,#0090ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 900, color: "#001a2e", fontFamily: "monospace" }}>
+                  {(user.name || user.email || "U")[0].toUpperCase()}
+                </div>
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: "#05f0ff", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.06em", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {user.name || user.email.split("@")[0]}
+                </span>
+              </button>
+              {showUserMenu && (
+                <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, background: "#0e1d30", border: "1px solid rgba(5,240,255,0.15)", borderRadius: 10, minWidth: 160, boxShadow: "0 12px 40px rgba(0,0,0,0.8)", zIndex: 500, overflow: "hidden" }}>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#fff", fontFamily: "monospace" }}>{user.name || "User"}</div>
+                    <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.35)", fontFamily: "monospace", marginTop: 2 }}>{user.email}</div>
+                    {user.fpl_team_id && <div style={{ fontSize: 9, color: "rgba(5,240,255,0.6)", fontFamily: "monospace", marginTop: 3 }}>FPL ID: {user.fpl_team_id}</div>}
+                  </div>
+                  <button onClick={() => { logout(); setShowUserMenu(false); }} style={{ width: "100%", padding: "10px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontSize: 11, fontWeight: 800, color: "rgba(255,100,100,0.8)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Log Out
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <button onClick={onAuthClick} style={{
+              background: "linear-gradient(135deg,#05f0ff,#0090ff)",
+              border: "none", cursor: "pointer",
+              borderRadius: 8, padding: "6px 14px",
+              fontSize: 11, fontWeight: 900, color: "#001a2e",
+              letterSpacing: "0.06em", textTransform: "uppercase",
+              fontFamily: "'Barlow Condensed', sans-serif",
+            }}>
+              Log In
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
 }
 
 // ─── APP LAYOUT ───────────────────────────────────────────────────────────────
-export default function AppLayout() {
-  const [activePage, setActivePage] = useState("home");
-  const [activeTeam, setActiveTeam] = useState(null);
+function AppLayoutInner() {
+  const [activePage,  setActivePage]  = useState("home");
+  const [activeTeam,  setActiveTeam]  = useState(null);
+  const [showAuth,    setShowAuth]    = useState(false);
 
   const ActivePage = NAV.find(n=>n.id===activePage)?.component || null;
 
@@ -567,7 +617,7 @@ export default function AppLayout() {
         height:"100vh", overflow:"hidden",
         background:"#050d14",
       }}>
-        <Topbar active={activePage} setActive={setActivePage}/>
+        <Topbar active={activePage} setActive={setActivePage} onAuthClick={() => setShowAuth(true)}/>
 
         <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
           <SidebarLeft activeTeam={activeTeam} setActiveTeam={setActiveTeam}/>
@@ -589,7 +639,17 @@ export default function AppLayout() {
 
           <SidebarRight/>
         </div>
+
+        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       </div>
     </>
+  );
+}
+
+export default function AppLayout() {
+  return (
+    <AuthProvider>
+      <AppLayoutInner />
+    </AuthProvider>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { api } from "../api/client";
 
 // ─── STATIC DATA ──────────────────────────────────────────────────────────────
 const STATS = [
@@ -77,11 +78,24 @@ function AnimatedCounter({ target, duration = 2000 }) {
 
 // ─── JOIN FORM ────────────────────────────────────────────────────────────────
 function JoinForm() {
-  const [step, setStep]   = useState(0);
-  const [city, setCity]   = useState("");
-  const [role, setRole]   = useState("");
-  const [email, setEmail] = useState("");
+  const [step,    setStep]    = useState(0); // 0=form 1=loading 2=success
+  const [city,    setCity]    = useState("");
+  const [role,    setRole]    = useState("");
+  const [email,   setEmail]   = useState("");
+  const [error,   setError]   = useState("");
   const roles = ["Player", "Coach", "Scout", "Fan", "Journalist", "Club Official"];
+
+  const handleJoin = async () => {
+    if (!email || !city) return;
+    setStep(1); setError("");
+    try {
+      await api.communityJoin({ email, city, role: role || "Fan" });
+      setStep(2);
+    } catch (e) {
+      setError(e.message || "Something went wrong. Try again.");
+      setStep(0);
+    }
+  };
 
   if (step === 2) return (
     <div style={{ textAlign: "center", padding: "32px 0" }}>
@@ -114,8 +128,13 @@ function JoinForm() {
           ))}
         </div>
       </div>
+      {error && (
+        <div style={{ background: "rgba(255,77,77,0.1)", border: "1px solid rgba(255,77,77,0.2)", borderRadius: 6, padding: "8px 12px", fontSize: 10.5, color: "rgba(255,130,130,0.9)", fontFamily: "var(--mono)" }}>
+          {error}
+        </div>
+      )}
       <button className="btn btn-primary"
-        onClick={() => { if (!email || !city) return; setStep(1); setTimeout(() => setStep(2), 1600); }}
+        onClick={handleJoin}
         disabled={step === 1 || !email || !city}
         style={{ width: "100%", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         {step === 1 ? <><div className="spinner" style={{ width: 13, height: 13 }} />Joining…</> : <>Join the Movement <Icon name="arrow" size={13} /></>}
