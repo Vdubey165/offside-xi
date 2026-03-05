@@ -25,15 +25,21 @@ async function req(path, options = {}) {
   return res.json();
 }
 
-
-
 export const api = {
+  // Standard paginated players (used by TopPicks etc.)
   getPlayers: (params = {}) => {
     const qs = new URLSearchParams(
       Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
     ).toString();
     return req(`/players${qs ? "?" + qs : ""}`);
   },
+
+  // Fetch ALL players for a given position — bypasses default limit=50
+  // only_available=false: include injured/doubtful so user has full choice
+  // max_price=25 covers every player in FPL, limit=300 covers full position pool
+  getPlayersByPosition: (position) =>
+    req(`/players?position=${position}&max_price=25&limit=300&only_available=false`),
+
   getModelInsights:  ()         => req("/model/insights"),
   optimizeSquad:     (budget)   => req("/squad/optimize",    { method: "POST", body: JSON.stringify({ budget }) }),
   fetchSquad:        (teamId)   => req(`/transfers/squad/${teamId}`),
@@ -41,5 +47,5 @@ export const api = {
   getFplNews:        ()         => req("/fpl/news"),
   getFplFixtures:    (event)    => req(`/fpl/fixtures${event ? "?event=" + event : ""}`),
   getPlTable:        ()         => req("/pl/table"),
-  getPlayerDetail:   (playerId) => req(`/players/${playerId}`),  // ← ADD THIS
+  getPlayerDetail:   (playerId) => req(`/players/${playerId}`),
 };

@@ -287,17 +287,24 @@ def debug():
 
 @app.get("/api/current-gw")
 def current_gw():
-    """Returns the real current Premier League gameweek from the FPL API."""
+    """Returns current GW, its deadline, and whether it has finished."""
     try:
         r       = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
         events  = pd.DataFrame(r["events"])
         current = events[events["is_current"] == True]
         if len(current):
-            gw = int(current["id"].iloc[0])
+            row = current.iloc[0]
         else:
-            finished = events[events["finished"] == True]
-            gw = int(finished["id"].max()) if len(finished) else 1
-        return {"gameweek": gw}
+            finished_rows = events[events["finished"] == True]
+            row = finished_rows.loc[finished_rows["id"].idxmax()] if len(finished_rows) else events.iloc[0]
+        gw            = int(row["id"])
+        deadline_time = str(row.get("deadline_time", "")) or None
+        gw_finished   = bool(row.get("finished", False))
+        return {
+            "gameweek":      gw,
+            "deadline_time": deadline_time,
+            "gw_finished":   gw_finished,
+        }
     except Exception as e:
         raise HTTPException(500, f"Could not fetch current gameweek: {e}")
 
@@ -380,7 +387,7 @@ def optimize_squad(req: OptimizeRequest):
     squad    = _run_squad_ilp(df, budget_raw)
     starters = squad[squad["is_starter"] == True]
     bench    = squad[squad["is_starter"] == False]
-    cols     = ["web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
+    cols     = ["player_id", "web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
 
     starters_sorted   = starters.sort_values("predicted_pts", ascending=False)
     captain_name      = starters_sorted.iloc[0]["web_name"]

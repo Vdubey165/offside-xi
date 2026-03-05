@@ -1,32 +1,45 @@
 /**
  * useGameweek — fetches the real current GW from the FPL API via our backend.
- * Returns { gw: number, loading: boolean }
- * Falls back to the last value or 1 if the backend is unreachable.
+ * Returns { gw, loading, deadlineTime, gwFinished }
  */
 import { useState, useEffect } from "react";
 
-let _cachedGW = null;  // module-level cache so we only fetch once per session
+const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
+
+let _cache = null; // module-level cache so we only fetch once per session
 
 export function useGameweek() {
-  const [gw,      setGw]      = useState(_cachedGW || null);
-  const [loading, setLoading] = useState(!_cachedGW);
+  const [gw,           setGw]           = useState(_cache?.gw           || null);
+  const [loading,      setLoading]      = useState(!_cache);
+  const [deadlineTime, setDeadlineTime] = useState(_cache?.deadlineTime  || null); // ISO string
+  const [gwFinished,   setGwFinished]   = useState(_cache?.gwFinished    || false);
 
   useEffect(() => {
-    if (_cachedGW) { setGw(_cachedGW); setLoading(false); return; }
+    if (_cache) {
+      setGw(_cache.gw);
+      setDeadlineTime(_cache.deadlineTime);
+      setGwFinished(_cache.gwFinished);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     async function fetchGW() {
       try {
-        // Use our backend health endpoint which already resolves the current GW
-        // via the FPL API's bootstrap-static events list.
-        const res  = await fetch("http://localhost:8000/api/current-gw", { signal: AbortSignal.timeout(5000) });
+        const res  = await fetch(`${BASE}/current-gw`, { signal: AbortSignal.timeout(5000) });
         const data = await res.json();
         if (!cancelled && data.gameweek) {
-          _cachedGW = data.gameweek;
-          setGw(data.gameweek);
+          _cache = {
+            gw:           data.gameweek,
+            deadlineTime: data.deadline_time || null,
+            gwFinished:   data.gw_finished   || false,
+          };
+          setGw(_cache.gw);
+          setDeadlineTime(_cache.deadlineTime);
+          setGwFinished(_cache.gwFinished);
         }
       } catch (_) {
-        // Backend unreachable — leave null so callers show "—"
+        // Backend unreachable — leave null
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -35,5 +48,5 @@ export function useGameweek() {
     return () => { cancelled = true; };
   }, []);
 
-  return { gw, loading };
+  return { gw, loading, deadlineTime, gwFinished };
 }
