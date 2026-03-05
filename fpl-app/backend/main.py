@@ -861,7 +861,12 @@ _db           = None
 def get_db():
     global _mongo_client, _db
     if _db is None:
-        _mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+        _mongo_client = MongoClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=10000,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+        )
         _db = _mongo_client["offside_xi"]
         # Indexes
         _db.users.create_index("email", unique=True)
