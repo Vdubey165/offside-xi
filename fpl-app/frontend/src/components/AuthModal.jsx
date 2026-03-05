@@ -17,17 +17,34 @@ export default function AuthModal({ onClose }) {
     setError("");
     if (!email || !password) { setError("Email and password required"); return; }
     setLoading(true);
-    try {
+
+    const attempt = async () => {
       if (mode === "login") {
         const user = await login(email, password);
-        // If user already has FPL ID skip the step
         if (user?.fpl_team_id) { onClose(); return; }
       } else {
-        if (password.length < 6) { setError("Password must be at least 6 characters"); setLoading(false); return; }
+        if (password.length < 6) throw new Error("Password must be at least 6 characters");
         await register(email, password, name);
       }
-      setStep("fplid"); // show FPL ID step after auth
+      setStep("fplid");
+    };
+
+    try {
+      await attempt();
     } catch (e) {
+      const isColdStart = e.message?.includes("Failed to fetch") || e.message?.includes("NetworkError") || e.message?.includes("fetch");
+      if (isColdStart) {
+        setError("Server is waking up — retrying in 4 seconds...");
+        setTimeout(async () => {
+          try {
+            await attempt();
+            setError("");
+          } catch (e2) {
+            setError(e2.message?.includes("fetch") ? "Server still starting. Please wait 30s and try again." : e2.message || "Something went wrong");
+          } finally { setLoading(false); }
+        }, 4000);
+        return;
+      }
       setError(e.message || "Something went wrong");
     } finally {
       setLoading(false);

@@ -1,5 +1,8 @@
 const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
 
+// Wake up Render free tier the moment the app loads
+fetch(`${BASE}/health`).catch(() => {});
+
 async function req(path, options = {}) {
   let res;
   try {
