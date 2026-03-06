@@ -435,13 +435,28 @@ export default function MainPitch() {
         const remaining = parseFloat((100 - (parseFloat(data.total_cost)||0)).toFixed(1));
         setRemainingBudget(remaining);
 
+        // Helper: if cached team is missing player_id, re-map from fresh squad data
+        const healTeam = (team, freshData) => {
+          const byName = {};
+          [...(freshData.starters||[]), ...(freshData.bench||[])].forEach(p => {
+            byName[p.web_name] = p;
+          });
+          const heal = (players) => players.map(p => {
+            if (p.player_id) return p; // already has it
+            const fresh = byName[p.web_name];
+            return fresh ? { ...p, player_id: fresh.player_id } : p;
+          });
+          return { ...team, starters: heal(team.starters||[]), bench: heal(team.bench||[]) };
+        };
+
         // Try server first (cross-browser), then localStorage fallback
         let restored = false;
         if (token) {
           try {
             const serverState = await api.loadChallengeState(token);
             if (serverState.found && serverState.gw === gw) {
-              setUserTeam(serverState.team);
+              const healedTeam = healTeam(serverState.team, data);
+              setUserTeam(healedTeam);
               setRemainingBudget(serverState.remaining ?? remaining);
               setChallenged(true);
               restored = true;
@@ -453,7 +468,12 @@ export default function MainPitch() {
           if (saved) {
             try {
               const parsed = JSON.parse(saved);
-              if (parsed.gw === gw) { setUserTeam(parsed.team); setRemainingBudget(parsed.remaining ?? remaining); setChallenged(true); }
+              if (parsed.gw === gw) {
+                const healedTeam = healTeam(parsed.team, data);
+                setUserTeam(healedTeam);
+                setRemainingBudget(parsed.remaining ?? remaining);
+                setChallenged(true);
+              }
             } catch(_) {}
           }
         }
