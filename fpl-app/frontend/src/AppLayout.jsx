@@ -666,7 +666,7 @@ function AppLayoutInner() {
           }
 
           .main-content {
-            padding-bottom: 70px !important;
+            padding-bottom: 76px !important;
           }
 
           .two-col {

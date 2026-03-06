@@ -35,24 +35,31 @@ export default function TopPicks() {
 
   return (
     <div>
+      <style>{`
+        @media (max-width: 600px) {
+          .picks-team-col { display: none !important; }
+          .picks-subtitle { font-size: 9px !important; }
+          .picks-search   { width: 100% !important; }
+          .picks-filters  { gap: 6px !important; }
+        }
+      `}</style>
+
       <div className="page-header">
         <div className="page-header-left">
           <div className="page-title">Top Picks</div>
-          <div className="page-subtitle">LightGBM · next GW predictions · MAE 1.021 · click any player for full stats</div>
+          <div className="page-subtitle picks-subtitle">LightGBM · next GW predictions · MAE 1.021 · click any player for full stats</div>
         </div>
       </div>
 
-      <div className="filters">
-        {/* Position pills */}
+      <div className="filters picks-filters">
         {POSITIONS.map((p) => (
           <button key={p} className={`filter-pill ${pos === p ? "active" : ""}`} onClick={() => setPos(p)}>{p}</button>
         ))}
 
         <div className="filter-sep" />
 
-        {/* Search bar */}
         <input
-          className="input"
+          className="input picks-search"
           placeholder="Search player or team..."
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -61,7 +68,6 @@ export default function TopPicks() {
 
         <div className="filter-sep" />
 
-        {/* Price range */}
         <div className="range-wrap">
           <span>Max price</span>
           <input
@@ -74,7 +80,6 @@ export default function TopPicks() {
 
         <div className="filter-sep" />
 
-        {/* Available only */}
         <button className={`filter-pill ${onlyAvail ? "active" : ""}`} onClick={() => setOnlyAvail(!onlyAvail)}>
           Available only
         </button>
@@ -90,7 +95,7 @@ export default function TopPicks() {
               <tr>
                 <th style={{ width: 36 }}>#</th>
                 <th>Player</th>
-                <th>Team</th>
+                <th className="picks-team-col">Team</th>
                 <th>Pos</th>
                 <th>Price</th>
                 <th>Predicted Pts</th>
@@ -112,7 +117,7 @@ export default function TopPicks() {
                       <span style={{ fontSize: 9, color: "rgba(5,240,255,0.4)", fontFamily: "'Barlow Condensed',monospace" }}>↗</span>
                     </div>
                   </td>
-                  <td style={{ color: "var(--text3)", fontSize: 12 }}>{p.team_name}</td>
+                  <td className="picks-team-col" style={{ color: "var(--text3)", fontSize: 12 }}>{p.team_name}</td>
                   <td><span className={`pos pos-${p.position}`}>{p.position}</span></td>
                   <td className="price">£{p.price?.toFixed(1)}m</td>
                   <td>
@@ -139,7 +144,6 @@ export default function TopPicks() {
         </div>
       )}
 
-      {/* Player detail panel */}
       <PlayerPanel
         player={selectedPlayer}
         onClose={() => setSelectedPlayer(null)}
