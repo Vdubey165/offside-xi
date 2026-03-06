@@ -684,7 +684,7 @@ function AppLayoutInner() {
 
         @media (max-width: 480px) {
           .main-content {
-            padding: 14px 12px 70px !important;
+            padding: 14px 12px 80px !important;
           }
           .page-title { font-size: 18px !important; }
         }

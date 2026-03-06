@@ -573,6 +573,8 @@ export default function MainPitch() {
             max-height: 100vh !important;
             width: 100vw !important;
           }
+          .bench-wrap { padding: 8px 4px 10px !important; gap: 2px !important; }
+          .bench-player { min-width: 0 !important; flex: 1 !important; }
         }
       `}</style>
 
@@ -682,14 +684,14 @@ export default function MainPitch() {
           <span style={{ fontSize: 9.5, fontWeight: 800, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "monospace" }}>Bench</span>
           <div style={{ flex: 1, height: "1px", background: "rgba(255,255,255,0.08)" }}/>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-evenly", alignItems: "flex-start", background: "rgba(255,255,255,0.025)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.09)", padding: "12px 8px 10px" }}>
+        <div className="bench-wrap" style={{ display: "flex", justifyContent: "space-evenly", alignItems: "flex-start", background: "rgba(255,255,255,0.025)", borderRadius: 10, border: "1px dashed rgba(255,255,255,0.09)", padding: "12px 8px 10px" }}>
           {loading ? Array.from({length:4}).map((_,i) => (
-            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div key={i} className="bench-player" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
               <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(255,255,255,0.06)", animation: "pulse 1.5s ease-in-out infinite" }}/>
               <SkeletonCard small/>
             </div>
           )) : displaySquad?.bench?.map((p,i) => (
-            <div key={p.web_name+i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <div key={p.web_name+i} className="bench-player" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
               <div style={{ width: 18, height: 18, borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.4)", fontFamily: "monospace" }}>{i+1}</div>
               <Card p={p} small/>
             </div>
