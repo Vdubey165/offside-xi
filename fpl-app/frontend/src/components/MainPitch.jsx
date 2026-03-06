@@ -527,9 +527,11 @@ export default function MainPitch() {
     if (!allIds.length) return;
 
     api.getGwPoints(gw, allIds).then(pointsMap => {
-      // Only starters count (top 11 by points with position rules - simplified: just starters)
       const calcActual = (starters) =>
-        starters.reduce((sum, p) => sum + (pointsMap[String(p.player_id)] || 0), 0);
+        starters.reduce((sum, p) => {
+          const pts = pointsMap[String(p.player_id)] || 0;
+          return sum + (p.is_captain ? pts * 2 : pts);
+        }, 0);
 
       const model_pts = calcActual(squad.starters);
       const user_pts  = calcActual(userTeam.starters);
