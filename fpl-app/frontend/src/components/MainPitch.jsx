@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useGameweek } from "../hooks/useGameweek";
 import { api } from "../api/client";
+import { useAuth } from "../hooks/useAuth.jsx";
 
 // ─── TEAM KIT COLORS ──────────────────────────────────────────────────────────
 const KITS = {
@@ -216,7 +217,7 @@ function SwapModal({ player, positionPlayers, loadingPlayers, userTeam, remainin
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }} onClick={onClose}>
-      <div style={{ background: "linear-gradient(135deg,#06101c,#0e1d30)", borderRadius: 16, width: "100%", maxWidth: 460, border: "1px solid rgba(5,240,255,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.9)", overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+      <div className="swap-modal-inner" style={{ background: "linear-gradient(135deg,#06101c,#0e1d30)", borderRadius: 16, width: "100%", maxWidth: 460, border: "1px solid rgba(5,240,255,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.9)", overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ padding: "14px 18px", background: "rgba(5,240,255,0.06)", borderBottom: "1px solid rgba(5,240,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -339,24 +340,23 @@ function useCountdown(deadlineTime) {
 function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
   const countdown = useCountdown(deadlineTime);
   const deadlinePassed = deadlineTime ? Date.now() > new Date(deadlineTime) : false;
+  const thisGwResult = history.find(h => h.gw === gw);
 
-  // Post-GW — show real scoreboard from saved history
+  // Post-GW with result — show real scoreboard
   if (gwFinished && history.length > 0) {
     const modelTotal = history.reduce((a, h) => a + (h.model_pts || 0), 0);
     const userTotal  = history.reduce((a, h) => a + (h.user_pts  || 0), 0);
-    const latest     = history[history.length - 1];
+    const latest     = thisGwResult || history[history.length - 1];
     const diff       = userTotal - modelTotal;
     const leading    = diff > 0 ? "YOU" : diff < 0 ? "MODEL" : "TIED";
     return (
       <div style={{ background: "linear-gradient(135deg,rgba(5,240,255,0.08),rgba(235,255,0,0.06))", borderBottom: "1px solid rgba(255,255,255,0.07)", padding: "10px 18px", display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(5,240,255,0.6)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.1em", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 3 }}>
-            <Icon.Robot size={10} color="rgba(5,240,255,0.6)" /> Model
-          </div>
+          <div style={{ fontSize: 9, color: "rgba(5,240,255,0.6)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3 }}>🤖 Model</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: "#05f0ff", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{latest.model_pts}</div>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", fontFamily: "monospace", marginTop: 2 }}>GW{latest.gw} · Total: {modelTotal}</div>
         </div>
-        <div style={{ textAlign: "center", minWidth: 52 }}>
+        <div style={{ textAlign: "center", minWidth: 60 }}>
           <div style={{ fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.15)", fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: "0.15em", marginBottom: 2 }}>VS</div>
           <div style={{ fontSize: 11, fontFamily: "monospace", letterSpacing: "0.06em", fontWeight: 900, textTransform: "uppercase", color: leading === "YOU" ? "#ebff00" : leading === "MODEL" ? "#05f0ff" : "rgba(255,255,255,0.4)" }}>
             {leading === "TIED" ? "TIED" : `${leading} +${Math.abs(diff)}`}
@@ -364,12 +364,20 @@ function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
           <div style={{ fontSize: 8, color: "rgba(255,255,255,0.2)", fontFamily: "monospace", textTransform: "uppercase", marginTop: 2, letterSpacing: "0.08em" }}>ACTUAL PTS</div>
         </div>
         <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: 9, color: "rgba(235,255,0,0.6)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.1em", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 3 }}>
-            <Icon.Brain size={10} color="rgba(235,255,0,0.6)" /> You
-          </div>
+          <div style={{ fontSize: 9, color: "rgba(235,255,0,0.6)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 3 }}>⚽ You</div>
           <div style={{ fontSize: 26, fontWeight: 900, color: "#ebff00", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{latest.user_pts}</div>
           <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", fontFamily: "monospace", marginTop: 2 }}>GW{latest.gw} · Total: {userTotal}</div>
         </div>
+      </div>
+    );
+  }
+
+  // GW finished but still calculating
+  if (gwFinished && history.length === 0) {
+    return (
+      <div style={{ background: "rgba(5,240,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "9px 18px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <div style={{ width: 12, height: 12, borderRadius: "50%", border: "2px solid rgba(5,240,255,0.3)", borderTopColor: "#05f0ff", animation: "spin 0.8s linear infinite" }}/>
+        <span style={{ fontSize: 10, fontWeight: 800, fontFamily: "monospace", color: "rgba(5,240,255,0.6)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Calculating GW results...</span>
       </div>
     );
   }
@@ -402,6 +410,7 @@ function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
 // ─── MAIN PITCH ───────────────────────────────────────────────────────────────
 export default function MainPitch() {
   const { gw, loading: gwLoading, deadlineTime, gwFinished } = useGameweek();
+  const { saveChallengeResult } = useAuth();
   const gwLabel = gwLoading ? "···" : gw ? `GAMEWEEK ${gw}` : "PREMIER LEAGUE";
 
   const [squad,          setSquad]          = useState(null);
@@ -458,6 +467,48 @@ export default function MainPitch() {
     fetchWithRetry(3);
   }, [swapping?.player_id]);
 
+  // ── Score the GW when it finishes ──────────────────────────────────────────
+  useEffect(() => {
+    if (!gwFinished || !gw || !challenged || !squad || !userTeam) return;
+
+    // Check if already scored this GW
+    const alreadyScored = history.some(h => h.gw === gw);
+    if (alreadyScored) return;
+
+    const modelPlayerIds = [
+      ...squad.starters.map(p => p.player_id),
+      ...squad.bench.map(p => p.player_id),
+    ].filter(Boolean);
+
+    const userPlayerIds = [
+      ...userTeam.starters.map(p => p.player_id),
+      ...userTeam.bench.map(p => p.player_id),
+    ].filter(Boolean);
+
+    const allIds = [...new Set([...modelPlayerIds, ...userPlayerIds])];
+    if (!allIds.length) return;
+
+    api.getGwPoints(gw, allIds).then(pointsMap => {
+      // Only starters count (top 11 by points with position rules - simplified: just starters)
+      const calcActual = (starters) =>
+        starters.reduce((sum, p) => sum + (pointsMap[String(p.player_id)] || 0), 0);
+
+      const model_pts = calcActual(squad.starters);
+      const user_pts  = calcActual(userTeam.starters);
+
+      const entry = { gw, model_pts, user_pts, scored_at: Date.now() };
+      const newHistory = [...history, entry];
+      setHistory(newHistory);
+      localStorage.setItem("offside_challenge_history", JSON.stringify(newHistory));
+
+      // Save to MongoDB if logged in
+      const swaps = userTeam.starters
+        .filter(p => p._swapped)
+        .map(p => p.web_name);
+      saveChallengeResult(gw, model_pts, user_pts, swaps);
+    }).catch(() => {});
+  }, [gwFinished, gw, challenged, squad, userTeam]);
+
   const startChallenge = useCallback(() => {
     if (!squad) return;
     const copy = { starters: squad.starters.map(p=>({...p})), bench: squad.bench.map(p=>({...p})), captain: squad.captain, vice_captain: squad.vice_captain, total_cost: squad.total_cost };
@@ -508,6 +559,21 @@ export default function MainPitch() {
         @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&display=swap');
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
         @keyframes slideIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+        @media (max-width: 480px) {
+          .pitch-header-meta { display: none !important; }
+          .pitch-header-right { gap: 6px !important; }
+          .captain-strip { font-size: 9px !important; padding: 5px 10px !important; }
+          .captain-strip-itb { display: none !important; }
+          .swap-modal-inner {
+            position: fixed !important;
+            inset: 0 !important;
+            border-radius: 0 !important;
+            max-height: 100vh !important;
+            width: 100vw !important;
+          }
+        }
       `}</style>
 
       {/* Header */}
@@ -545,7 +611,7 @@ export default function MainPitch() {
 
       {/* Captain / budget strip */}
       {displaySquad && !loading && (
-        <div style={{ background: mode==="user"?"rgba(235,255,0,0.035)":"rgba(5,240,255,0.05)", borderBottom: `1px solid ${mode==="user"?"rgba(235,255,0,0.09)":"rgba(5,240,255,0.09)"}`, padding: "6px 18px", display: "flex", gap: 14, alignItems: "center", transition: "all 0.2s" }}>
+        <div className="captain-strip" style={{ background: mode==="user"?"rgba(235,255,0,0.035)":"rgba(5,240,255,0.05)", borderBottom: `1px solid ${mode==="user"?"rgba(235,255,0,0.09)":"rgba(5,240,255,0.09)"}`, padding: "6px 18px", display: "flex", gap: 14, alignItems: "center", transition: "all 0.2s" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#F5C518", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="9" height="9" viewBox="0 0 24 24" fill="#1a0a00"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -561,7 +627,7 @@ export default function MainPitch() {
           </div>
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             {mode==="user" && (
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div className="captain-strip-itb" style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <Icon.Pound size={11} color={remainingBudget<0.5?"rgba(255,120,120,0.8)":"rgba(235,255,0,0.7)"} />
                 <span style={{ fontSize: 10, fontWeight: 800, fontFamily: "monospace", color: remainingBudget<0.5?"rgba(255,120,120,0.8)":"rgba(235,255,0,0.7)" }}>£{remainingBudget.toFixed(1)}m ITB</span>
               </div>

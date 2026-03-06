@@ -1,4 +1,5 @@
-"""
+
+    """
 FPL AI Decision Engine — FastAPI Backend
 Fix: robust path resolution, debug endpoint, live-API fallback when
      model/CSV files are missing (notebook not yet run).
@@ -294,58 +295,19 @@ def debug():
 
 @app.get("/api/current-gw")
 def current_gw():
-    """Returns the current GW, deadline_time and gw_finished from the FPL API."""
+    """Returns the real current Premier League gameweek from the FPL API."""
     try:
-        r      = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
-        events = pd.DataFrame(r["events"])
-
+        r       = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
+        events  = pd.DataFrame(r["events"])
         current = events[events["is_current"] == True]
         if len(current):
-            row = current.iloc[0]
+            gw = int(current["id"].iloc[0])
         else:
             finished = events[events["finished"] == True]
-            row = finished.loc[finished["id"].idxmax()] if len(finished) else events.iloc[0]
-
-        gw           = int(row["id"])
-        deadline     = row.get("deadline_time") or None
-        gw_finished  = bool(row.get("finished", False))
-
-        return {
-            "gameweek":      gw,
-            "deadline_time": deadline,
-            "gw_finished":   gw_finished,
-        }
+            gw = int(finished["id"].max()) if len(finished) else 1
+        return {"gameweek": gw}
     except Exception as e:
         raise HTTPException(500, f"Could not fetch current gameweek: {e}")
-
-
-@app.get("/api/gw-points/{gw}")
-def get_gw_points(gw: int, player_ids: str = ""):
-    """
-    Returns actual FPL points for given player_ids in a specific GW.
-    player_ids: comma-separated list of FPL element IDs
-    """
-    try:
-        if not player_ids:
-            return {}
-        ids = [int(x) for x in player_ids.split(",") if x.strip()]
-        r   = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
-        elements = pd.DataFrame(r["elements"])
-
-        # Get live points from event endpoint
-        live = requests.get(f"https://fantasy.premierleague.com/api/event/{gw}/live/", timeout=10).json()
-        live_df = pd.DataFrame([
-            {"id": e["id"], "points": e["stats"]["total_points"]}
-            for e in live.get("elements", [])
-        ])
-
-        result = {}
-        for pid in ids:
-            row = live_df[live_df["id"] == pid]
-            result[str(pid)] = int(row.iloc[0]["points"]) if not row.empty else 0
-        return result
-    except Exception as e:
-        raise HTTPException(500, f"Could not fetch GW points: {e}")
 
 
 @app.get("/api/players")
@@ -426,7 +388,7 @@ def optimize_squad(req: OptimizeRequest):
     squad    = _run_squad_ilp(df, budget_raw)
     starters = squad[squad["is_starter"] == True]
     bench    = squad[squad["is_starter"] == False]
-    cols     = ["web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
+    cols     = ["player_id","web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
 
     starters_sorted   = starters.sort_values("predicted_pts", ascending=False)
     captain_name      = starters_sorted.iloc[0]["web_name"]
@@ -698,18 +660,16 @@ def pl_table():
 
     # id → display name mapping
     name_map = {
-        "Arsenal":       "Arsenal",       "Aston Villa":   "Aston Villa",
-        "Bournemouth":   "Bournemouth",   "Brentford":     "Brentford",
-        "Brighton":      "Brighton",      "Chelsea":       "Chelsea",
-        "Crystal Palace":"Crystal Palace","Everton":       "Everton",
-        "Fulham":        "Fulham",        "Ipswich":       "Ipswich",
-        "Leicester":     "Leicester",     "Liverpool":     "Liverpool",
-        "Man City":      "Man City",      "Man Utd":       "Man United",
-        "Newcastle":     "Newcastle",     "Nott'm Forest": "Nottm Forest",
-        "Southampton":   "Southampton",   "Spurs":         "Tottenham",
-        "West Ham":      "West Ham",      "Wolves":        "Wolves",
-        "Sunderland":    "Sunderland",    "Leeds":         "Leeds United",
-        "Burnley":       "Burnley",       "Luton":         "Luton Town",
+        "Arsenal":       "Arsenal",       "Aston Villa":  "Aston Villa",
+        "Bournemouth":   "Bournemouth",   "Brentford":    "Brentford",
+        "Brighton":      "Brighton",      "Chelsea":      "Chelsea",
+        "Crystal Palace":"Crystal Palace","Everton":      "Everton",
+        "Fulham":        "Fulham",        "Ipswich":      "Ipswich",
+        "Leicester":     "Leicester",     "Liverpool":    "Liverpool",
+        "Man City":      "Man City",      "Man Utd":      "Man United",
+        "Newcastle":     "Newcastle",     "Nott'm Forest":"Nottm Forest",
+        "Southampton":   "Southampton",   "Spurs":        "Tottenham",
+        "West Ham":      "West Ham",      "Wolves":       "Wolves",
     }
     id_to_name = {
         int(row["id"]): name_map.get(str(row["name"]), str(row["name"]))
@@ -902,19 +862,14 @@ _db           = None
 def get_db():
     global _mongo_client, _db
     if _db is None:
-        import ssl
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         _mongo_client = MongoClient(
             MONGO_URI,
             serverSelectionTimeoutMS=10000,
-            tlsCAFile=None,
             tls=True,
             tlsAllowInvalidCertificates=True,
-            tlsAllowInvalidHostnames=True,
         )
         _db = _mongo_client["offside_xi"]
+        # Indexes
         _db.users.create_index("email", unique=True)
         _db.challenge_history.create_index([("user_id", 1), ("gw", 1)])
     return _db
@@ -1072,6 +1027,3 @@ def community_join(req: CommunityJoinRequest):
         "joined_at": datetime.utcnow(),
     })
     return {"ok": True, "message": "Welcome to the community!"}
-
-
-

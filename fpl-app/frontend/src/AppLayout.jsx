@@ -76,7 +76,7 @@ function Topbar({ active, setActive, onAuthClick }) {
       </div>
 
       {/* Nav tabs */}
-      <nav style={{display:"flex",alignItems:"center",gap:2,flex:1}}>
+      <nav className="topbar-nav" style={{display:"flex",alignItems:"center",gap:2,flex:1}}>
         {NAV.map(item=>{
           const isActive = active===item.id;
           return (
@@ -108,7 +108,7 @@ function Topbar({ active, setActive, onAuthClick }) {
       {/* Right: GW info */}
       <div style={{display:"flex",alignItems:"center",gap:14,marginLeft:"auto",flexShrink:0}}>
         {/* Overall rank */}
-        <div style={{textAlign:"right"}}>
+        <div className="topbar-rank" style={{textAlign:"right"}}>
           <div style={{
             fontSize:10,fontWeight:900,color:"rgba(255,255,255,0.8)",
             fontFamily:"'Barlow Condensed',monospace",letterSpacing:"0.04em",lineHeight:1,
@@ -159,7 +159,7 @@ function Topbar({ active, setActive, onAuthClick }) {
         </div>
 
         {/* Budget */}
-        <div style={{textAlign:"right"}}>
+        <div className="topbar-budget" style={{textAlign:"right"}}>
           <div style={{
             fontSize:13,fontWeight:900,
             color:"#ebff00",
@@ -610,6 +610,88 @@ function AppLayoutInner() {
         .locked-chip svg { width:10px; height:10px; }
 
         .fade-in { animation:pageIn 0.24s ease; }
+
+        /* ── MOBILE RESPONSIVE ───────────────────────────────── */
+        .bottom-nav {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .sidebar-left  { display: none !important; }
+          .sidebar-right { display: none !important; }
+          .topbar-nav    { display: none !important; }
+          .topbar-rank   { display: none !important; }
+          .topbar-budget { display: none !important; }
+
+          .bottom-nav {
+            display: flex;
+            position: fixed;
+            bottom: 0; left: 0; right: 0;
+            height: 58px;
+            background: linear-gradient(180deg, #07111e, #04090f);
+            border-top: 1px solid rgba(5,240,255,0.1);
+            z-index: 200;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 4px;
+          }
+
+          .bottom-nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.35);
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            transition: all 0.14s;
+            flex: 1;
+          }
+
+          .bottom-nav-item.active {
+            color: #05f0ff;
+          }
+
+          .bottom-nav-item .nav-icon {
+            font-size: 18px;
+            line-height: 1;
+          }
+
+          .main-content {
+            padding-bottom: 70px !important;
+          }
+
+          .two-col {
+            grid-template-columns: 1fr !important;
+          }
+
+          .transfer-cols {
+            grid-template-columns: 1fr !important;
+          }
+
+          .stats-row {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .main-content {
+            padding: 14px 12px 70px !important;
+          }
+          .page-title { font-size: 18px !important; }
+        }
+
+        @media (min-width: 769px) and (max-width: 1100px) {
+          .sidebar-right { display: none !important; }
+        }
       `}</style>
 
       <div style={{
@@ -620,9 +702,9 @@ function AppLayoutInner() {
         <Topbar active={activePage} setActive={setActivePage} onAuthClick={() => setShowAuth(true)}/>
 
         <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
-          <SidebarLeft activeTeam={activeTeam} setActiveTeam={setActiveTeam}/>
+          <div className="sidebar-left"><SidebarLeft activeTeam={activeTeam} setActiveTeam={setActiveTeam}/></div>
 
-          <main style={{
+          <main className="main-content" style={{
             flex:1,
             overflowY:"auto",
             padding:"22px 26px",
@@ -637,8 +719,22 @@ function AppLayoutInner() {
             </div>
           </main>
 
-          <SidebarRight/>
+          <div className="sidebar-right"><SidebarRight/></div>
         </div>
+
+        {/* Mobile bottom nav */}
+        <nav className="bottom-nav">
+          {NAV.map(item => (
+            <button
+              key={item.id}
+              className={`bottom-nav-item${activePage === item.id ? " active" : ""}`}
+              onClick={() => setActivePage(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
         {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       </div>
