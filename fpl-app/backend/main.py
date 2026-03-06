@@ -683,88 +683,48 @@ def fpl_fixtures(event: Optional[int] = None):
 
 @app.get("/api/pl/table")
 def pl_table():
-    """Fetches real PL standings from the official Premier League API (no key needed)."""
+    """Fetches real PL standings from football-data.org"""
     try:
-        # Official PL website API - free, no key, always current
+        api_key = os.environ.get("FOOTBALL_DATA_API_KEY", "")
         r = requests.get(
-            "https://footballapi.pulselive.com/football/standings",
-            params={"compSeasons": "719", "altIds": "true", "detail": "2",
-                    "FOOTBALL_COMPETITION": "1", "live": "true"},
-            headers={
-                "Origin": "https://www.premierleague.com",
-                "Referer": "https://www.premierleague.com/",
-            },
+            "https://api.football-data.org/v4/competitions/PL/standings",
+            headers={"X-Auth-Token": api_key},
             timeout=10
         ).json()
 
-        tables = r.get("tables", [])
-        if not tables:
-            raise Exception("No tables in response")
+        # Handle both possible response structures
+        if "standings" not in r:
+            raise HTTPException(500, f"Unexpected response: {list(r.keys())}")
 
-        # Get the overall/total table (not home/away)
-        table = None
-        for t in tables:
-            if t.get("gameWeek", 0) == 0 or not t.get("gameWeek"):
-                table = t.get("entries", [])
+        # Find the TOTAL standings table (not home/away split)
+        table_data = None
+        for s in r["standings"]:
+            if s.get("type") == "TOTAL":
+                table_data = s["table"]
                 break
-        if not table:
-            table = tables[0].get("entries", [])
+        if not table_data:
+            table_data = r["standings"][0]["table"]
 
         result = []
-        for row in sorted(table, key=lambda x: x.get("position", 99)):
-            team = row.get("team", {})
-            stats = {s["name"]: s["value"] for s in row.get("stats", [])}
+        for row in table_data:
+            team = row["team"]
             result.append({
-                "position": row.get("position"),
-                "name":     team.get("name", team.get("shortName", "")),
-                "played":   stats.get("played", 0),
-                "win":      stats.get("won", 0),
-                "draw":     stats.get("drawn", 0),
-                "loss":     stats.get("lost", 0),
-                "gf":       stats.get("goalsFor", 0),
-                "ga":       stats.get("goalsAgainst", 0),
-                "gd":       stats.get("goalsDifference", 0),
-                "points":   stats.get("points", 0),
+                "position": row["position"],
+                "name":     team["shortName"],
+                "played":   row["playedGames"],
+                "win":      row["won"],
+                "draw":     row["draw"],
+                "loss":     row["lost"],
+                "gf":       row["goalsFor"],
+                "ga":       row["goalsAgainst"],
+                "gd":       row["goalDifference"],
+                "points":   row["points"],
             })
         return result
-
+    except HTTPException:
+        raise
     except Exception as e:
-        # Fallback: build approximate table from FPL fixtures data
-        try:
-            boot = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
-            teams_df = pd.DataFrame(boot["teams"])
-            fixtures = requests.get("https://fantasy.premierleague.com/api/fixtures/?finished=true", timeout=10).json()
-
-            from collections import defaultdict
-            standings = defaultdict(lambda: {"played":0,"win":0,"draw":0,"loss":0,"gf":0,"ga":0,"points":0})
-
-            for f in fixtures:
-                h, a = f["team_h"], f["team_a"]
-                hs, as_ = f["team_h_score"], f["team_a_score"]
-                if hs is None or as_ is None:
-                    continue
-                standings[h]["played"] += 1; standings[h]["gf"] += hs; standings[h]["ga"] += as_
-                standings[a]["played"] += 1; standings[a]["gf"] += as_; standings[a]["ga"] += hs
-                if hs > as_:
-                    standings[h]["win"] += 1; standings[h]["points"] += 3
-                    standings[a]["loss"] += 1
-                elif hs < as_:
-                    standings[a]["win"] += 1; standings[a]["points"] += 3
-                    standings[h]["loss"] += 1
-                else:
-                    standings[h]["draw"] += 1; standings[h]["points"] += 1
-                    standings[a]["draw"] += 1; standings[a]["points"] += 1
-
-            result = []
-            team_map = {t["id"]: t["name"] for _, t in teams_df.iterrows()}
-            for tid, s in standings.items():
-                result.append({"name": team_map.get(tid, str(tid)), "gd": s["gf"]-s["ga"], **s})
-            result.sort(key=lambda x: (-x["points"], -x["gd"], -x["gf"]))
-            for i, r in enumerate(result, 1):
-                r["position"] = i
-            return result
-        except Exception as e2:
-            raise HTTPException(500, f"All table sources failed: {e} | {e2}")
+        raise HTTPException(500, f"Could not fetch PL table: {e}")
 
 
 @app.get("/api/players/{player_id}")
