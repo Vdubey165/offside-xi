@@ -17,13 +17,13 @@ import GameweekHub    from "./pages/GameweekHub";
 
 // ─── NAV CONFIG ───────────────────────────────────────────────────────────────
 const NAV = [
-  { id:"home",      label:"Home",        icon:"⌂", component:null            },
-  { id:"squad",     label:"My Squad",    icon:"◈", component:MainPitch       },
-  { id:"picks",     label:"Top Picks",   icon:"◉", component:TopPicks        },
-  { id:"optimal",   label:"Optimal XI",  icon:"◫", component:OptimalSquad    },
-  { id:"transfers", label:"Transfers",   icon:"⇄", component:TransferPlanner },
-  { id:"insights",  label:"Insights",    icon:"◎", component:ModelInsights   },
-  { id:"india",     label:"India FC",    icon:"◈", component:IndianFootballCommunity },
+  { id:"home",      label:"Home",        mLabel:"Home",     icon:"⌂", component:null            },
+  { id:"squad",     label:"My Squad",    mLabel:"Squad",    icon:"◈", component:MainPitch       },
+  { id:"picks",     label:"Top Picks",   mLabel:"Picks",    icon:"◉", component:TopPicks        },
+  { id:"optimal",   label:"Optimal XI",  mLabel:"Optimal",  icon:"◫", component:OptimalSquad    },
+  { id:"transfers", label:"Transfers",   mLabel:"Transfers",icon:"⇄", component:TransferPlanner },
+  { id:"insights",  label:"Insights",    mLabel:"Insights", icon:"◎", component:ModelInsights   },
+  { id:"india",     label:"India FC",    mLabel:"India FC", icon:"◈", component:IndianFootballCommunity },
 ];
 
 // ─── FPL-STYLE TOPBAR ─────────────────────────────────────────────────────────
@@ -665,8 +665,15 @@ function AppLayoutInner() {
             line-height: 1;
           }
 
+          .bottom-nav-item .nav-label {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+          }
+
           .main-content {
-            padding-bottom: 120px !important;
+            padding-bottom: 140px !important;
           }
 
           .two-col {
@@ -687,7 +694,7 @@ function AppLayoutInner() {
             padding-top: 14px !important;
             padding-left: 12px !important;
             padding-right: 12px !important;
-            padding-bottom: 120px !important;
+            padding-bottom: 140px !important;
           }
           .page-title { font-size: 18px !important; }
         }
@@ -733,7 +740,7 @@ function AppLayoutInner() {
               onClick={() => setActivePage(item.id)}
             >
               <span className="nav-icon">{item.icon}</span>
-              {item.label}
+              <span className="nav-label">{item.mLabel}</span>
             </button>
           ))}
         </nav>
