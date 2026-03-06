@@ -123,6 +123,7 @@ function Card({ p, small = false, challengeMode = false, isUserTeam = false, onS
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
       onClick={clickable ? () => onSwap(p) : undefined}
+      className={small ? "bench-card" : ""}
       style={{ display: "flex", flexDirection: "column", alignItems: "center", width: w, cursor: clickable ? "pointer" : "default", position: "relative", transform: hover ? "translateY(-6px) scale(1.05)" : "none", transition: "transform 0.2s cubic-bezier(0.34,1.56,0.64,1)", zIndex: hover ? 30 : 1 }}>
       <div style={{ position: "relative" }}>
         <Shirt teamName={p.team_name} size={sz} captain={p.is_captain} vice={p.is_vice_captain} swappable={clickable} swapped={isSwapped} />
@@ -133,12 +134,12 @@ function Card({ p, small = false, challengeMode = false, isUserTeam = false, onS
         )}
       </div>
       <div style={{ marginTop: 4, background: isSwapped ? "rgba(235,255,0,0.92)" : "rgba(255,255,255,0.93)", borderRadius: 3, padding: small ? "2px 4px" : "2px 6px", width: "100%", textAlign: "center", boxShadow: "0 2px 5px rgba(0,0,0,0.4)" }}>
-        <div style={{ fontSize: small ? 9 : 10.5, fontWeight: 800, color: isSwapped ? "#1a1a00" : "#1a1e2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "'Barlow Condensed','Arial Narrow',Impact,sans-serif", textTransform: "uppercase" }}>
+        <div className={small ? "bench-name" : ""} style={{ fontSize: small ? 9 : 10.5, fontWeight: 800, color: isSwapped ? "#1a1a00" : "#1a1e2e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "'Barlow Condensed','Arial Narrow',Impact,sans-serif", textTransform: "uppercase" }}>
           {p.web_name?.toUpperCase() || p.name}
         </div>
       </div>
       <div style={{ marginTop: 2, background: ptsBg, borderRadius: 3, padding: small ? "1px 4px" : "1px 6px", width: "100%", textAlign: "center" }}>
-        <div style={{ fontSize: small ? 9 : 10.5, fontWeight: 900, color: ptsTx, fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.02em" }}>
+        <div className={small ? "bench-pts" : ""} style={{ fontSize: small ? 9 : 10.5, fontWeight: 900, color: ptsTx, fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.02em" }}>
           {small ? (p.predicted_pts||0).toFixed(1) : `${(p.predicted_pts||0).toFixed(1)} pts`}
         </div>
       </div>
@@ -573,8 +574,11 @@ export default function MainPitch() {
             max-height: 100vh !important;
             width: 100vw !important;
           }
-          .bench-wrap { padding: 8px 4px 10px !important; gap: 2px !important; }
-          .bench-player { min-width: 0 !important; flex: 1 !important; }
+          .bench-wrap { padding: 8px 4px 10px !important; }
+          .bench-player { min-width: 0 !important; flex: 1 !important; max-width: 25% !important; }
+          .bench-card { width: 100% !important; max-width: 70px !important; }
+          .bench-card .bench-name { font-size: 8px !important; }
+          .bench-card .bench-pts  { font-size: 8px !important; }
         }
       `}</style>
 

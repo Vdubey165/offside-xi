@@ -666,7 +666,7 @@ function AppLayoutInner() {
           }
 
           .main-content {
-            padding-bottom: 76px !important;
+            padding-bottom: 120px !important;
           }
 
           .two-col {
@@ -684,11 +684,13 @@ function AppLayoutInner() {
 
         @media (max-width: 480px) {
           .main-content {
-            padding: 14px 12px 80px !important;
+            padding-top: 14px !important;
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+            padding-bottom: 120px !important;
           }
           .page-title { font-size: 18px !important; }
         }
-
         @media (min-width: 769px) and (max-width: 1100px) {
           .sidebar-right { display: none !important; }
         }
