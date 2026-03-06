@@ -683,46 +683,64 @@ def fpl_fixtures(event: Optional[int] = None):
 
 @app.get("/api/pl/table")
 def pl_table():
-    """Fetches real PL standings from football-data.org"""
+    """Builds PL standings from current season FPL fixtures only."""
     try:
-        api_key = os.environ.get("FOOTBALL_DATA_API_KEY", "")
-        r = requests.get(
-            "https://api.football-data.org/v4/competitions/PL/standings",
-            headers={"X-Auth-Token": api_key},
+        boot = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
+        teams_df  = pd.DataFrame(boot["teams"])
+        events_df = pd.DataFrame(boot["events"])
+
+        # Only use GWs 1–38 of current season (all events in bootstrap ARE current season)
+        valid_gw_ids = set(events_df["id"].tolist())
+
+        # Fetch only finished fixtures
+        fixtures = requests.get(
+            "https://fantasy.premierleague.com/api/fixtures/?finished=true",
             timeout=10
         ).json()
 
-        # Handle both possible response structures
-        if "standings" not in r:
-            raise HTTPException(500, f"Unexpected response: {list(r.keys())}")
+        from collections import defaultdict
+        standings = defaultdict(lambda: {"played":0,"win":0,"draw":0,"loss":0,"gf":0,"ga":0,"points":0})
 
-        # Find the TOTAL standings table (not home/away split)
-        table_data = None
-        for s in r["standings"]:
-            if s.get("type") == "TOTAL":
-                table_data = s["table"]
-                break
-        if not table_data:
-            table_data = r["standings"][0]["table"]
+        for f in fixtures:
+            # Skip fixtures not in current season's GWs
+            if f.get("event") not in valid_gw_ids:
+                continue
+            h, a   = f["team_h"], f["team_a"]
+            hs, as_ = f["team_h_score"], f["team_a_score"]
+            if hs is None or as_ is None:
+                continue
+            standings[h]["played"] += 1; standings[h]["gf"] += hs; standings[h]["ga"] += as_
+            standings[a]["played"] += 1; standings[a]["gf"] += as_; standings[a]["ga"] += hs
+            if hs > as_:
+                standings[h]["win"] += 1; standings[h]["points"] += 3
+                standings[a]["loss"] += 1
+            elif hs < as_:
+                standings[a]["win"] += 1; standings[a]["points"] += 3
+                standings[h]["loss"] += 1
+            else:
+                standings[h]["draw"] += 1; standings[h]["points"] += 1
+                standings[a]["draw"] += 1; standings[a]["points"] += 1
 
+        team_map = {t["id"]: t["name"] for _, t in teams_df.iterrows()}
         result = []
-        for row in table_data:
-            team = row["team"]
+        for tid, s in standings.items():
             result.append({
-                "position": row["position"],
-                "name":     team["shortName"],
-                "played":   row["playedGames"],
-                "win":      row["won"],
-                "draw":     row["draw"],
-                "loss":     row["lost"],
-                "gf":       row["goalsFor"],
-                "ga":       row["goalsAgainst"],
-                "gd":       row["goalDifference"],
-                "points":   row["points"],
+                "position": 0,
+                "name":     team_map.get(tid, str(tid)),
+                "played":   s["played"],
+                "win":      s["win"],
+                "draw":     s["draw"],
+                "loss":     s["loss"],
+                "gf":       s["gf"],
+                "ga":       s["ga"],
+                "gd":       s["gf"] - s["ga"],
+                "points":   s["points"],
             })
+        result.sort(key=lambda x: (-x["points"], -x["gd"], -x["gf"]))
+        for i, r in enumerate(result, 1):
+            r["position"] = i
         return result
-    except HTTPException:
-        raise
+
     except Exception as e:
         raise HTTPException(500, f"Could not fetch PL table: {e}")
 
