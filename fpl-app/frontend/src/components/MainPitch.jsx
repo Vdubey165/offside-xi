@@ -411,7 +411,7 @@ function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
 // ─── MAIN PITCH ───────────────────────────────────────────────────────────────
 export default function MainPitch() {
   const { gw, loading: gwLoading, deadlineTime, gwFinished } = useGameweek();
-  const { saveChallengeResult } = useAuth();
+  const { saveChallengeResult, token } = useAuth();
   const gwLabel = gwLoading ? "···" : gw ? `GAMEWEEK ${gw}` : "PREMIER LEAGUE";
 
   const [squad,          setSquad]          = useState(null);
@@ -434,20 +434,37 @@ export default function MainPitch() {
         setSquad(data);
         const remaining = parseFloat((100 - (parseFloat(data.total_cost)||0)).toFixed(1));
         setRemainingBudget(remaining);
-        const saved = localStorage.getItem("offside_user_team");
-        if (saved) {
+
+        // Try server first (cross-browser), then localStorage fallback
+        let restored = false;
+        if (token) {
           try {
-            const parsed = JSON.parse(saved);
-            if (parsed.gw === gw) { setUserTeam(parsed.team); setRemainingBudget(parsed.remaining ?? remaining); setChallenged(true); }
+            const serverState = await api.loadChallengeState(token);
+            if (serverState.found && serverState.gw === gw) {
+              setUserTeam(serverState.team);
+              setRemainingBudget(serverState.remaining ?? remaining);
+              setChallenged(true);
+              restored = true;
+            }
           } catch(_) {}
         }
+        if (!restored) {
+          const saved = localStorage.getItem("offside_user_team");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              if (parsed.gw === gw) { setUserTeam(parsed.team); setRemainingBudget(parsed.remaining ?? remaining); setChallenged(true); }
+            } catch(_) {}
+          }
+        }
+
         const savedHist = localStorage.getItem("offside_challenge_history");
         if (savedHist) { try { setHistory(JSON.parse(savedHist)); } catch(_) {} }
       } catch(e) { setError(e.message||"Failed to load squad"); }
       finally { setLoading(false); }
     }
-    load();
-  }, []);
+    if (gw) load();
+  }, [gw, token]);
 
   // Fetch position players when modal opens
   useEffect(() => {
@@ -515,8 +532,10 @@ export default function MainPitch() {
     const copy = { starters: squad.starters.map(p=>({...p})), bench: squad.bench.map(p=>({...p})), captain: squad.captain, vice_captain: squad.vice_captain, total_cost: squad.total_cost };
     const rem = parseFloat((100-(parseFloat(squad.total_cost)||0)).toFixed(1));
     setUserTeam(copy); setRemainingBudget(rem); setChallenged(true); setMode("user");
-    localStorage.setItem("offside_user_team", JSON.stringify({gw, team: copy, remaining: rem}));
-  }, [squad, gw]);
+    const state = { gw, team: copy, remaining: rem };
+    localStorage.setItem("offside_user_team", JSON.stringify(state));
+    if (token) api.saveChallengeState(state, token).catch(()=>{});
+  }, [squad, gw, token]);
 
   const confirmSwap = useCallback((incoming) => {
     if (!swapping || !userTeam) return;
@@ -535,8 +554,10 @@ export default function MainPitch() {
     const newTeam = { ...userTeam, starters: withBadges, captain: sorted[0].web_name, vice_captain: sorted[1]?.web_name||"", total_cost: parseFloat((parseFloat(userTeam.total_cost)+delta).toFixed(1)) };
 
     setUserTeam(newTeam); setRemainingBudget(newRem); setSwapping(null);
-    localStorage.setItem("offside_user_team", JSON.stringify({gw, team: newTeam, remaining: newRem}));
-  }, [swapping, userTeam, remainingBudget, gw]);
+    const state = { gw, team: newTeam, remaining: newRem };
+    localStorage.setItem("offside_user_team", JSON.stringify(state));
+    if (token) api.saveChallengeState(state, token).catch(()=>{});
+  }, [swapping, userTeam, remainingBudget, gw, token]);
 
   const resetUserTeam = useCallback(() => {
     if (!squad) return;

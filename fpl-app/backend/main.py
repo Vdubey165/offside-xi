@@ -426,7 +426,7 @@ def optimize_squad(req: OptimizeRequest):
     squad    = _run_squad_ilp(df, budget_raw)
     starters = squad[squad["is_starter"] == True]
     bench    = squad[squad["is_starter"] == False]
-    cols     = ["web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
+    cols     = ["player_id", "web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
 
     starters_sorted   = starters.sort_values("predicted_pts", ascending=False)
     captain_name      = starters_sorted.iloc[0]["web_name"]
@@ -683,85 +683,48 @@ def fpl_fixtures(event: Optional[int] = None):
 
 @app.get("/api/pl/table")
 def pl_table():
-    """
-    Build the real Premier League table by computing W/D/L/GD/Pts
-    from every finished FPL fixture. This is the only reliable way —
-    the FPL teams endpoint win/draw/loss fields are not real league stats.
-    """
-    BASE_URL = "https://fantasy.premierleague.com/api"
+    """Fetches real PL standings from football-data.org"""
     try:
-        boot     = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
-        fixtures = requests.get(f"{BASE_URL}/fixtures/",         timeout=10).json()
-        teams_df = pd.DataFrame(boot["teams"])
+        api_key = os.environ.get("FOOTBALL_DATA_API_KEY", "")
+        r = requests.get(
+            "https://api.football-data.org/v4/competitions/PL/standings",
+            headers={"X-Auth-Token": api_key},
+            timeout=10
+        ).json()
+
+        # Handle both possible response structures
+        if "standings" not in r:
+            raise HTTPException(500, f"Unexpected response: {list(r.keys())}")
+
+        # Find the TOTAL standings table (not home/away split)
+        table_data = None
+        for s in r["standings"]:
+            if s.get("type") == "TOTAL":
+                table_data = s["table"]
+                break
+        if not table_data:
+            table_data = r["standings"][0]["table"]
+
+        result = []
+        for row in table_data:
+            team = row["team"]
+            result.append({
+                "position": row["position"],
+                "name":     team["shortName"],
+                "played":   row["playedGames"],
+                "win":      row["won"],
+                "draw":     row["draw"],
+                "loss":     row["lost"],
+                "gf":       row["goalsFor"],
+                "ga":       row["goalsAgainst"],
+                "gd":       row["goalDifference"],
+                "points":   row["points"],
+            })
+        return result
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(500, f"Could not fetch FPL data: {e}")
-
-    # id → display name mapping
-    name_map = {
-        "Arsenal":       "Arsenal",       "Aston Villa":   "Aston Villa",
-        "Bournemouth":   "Bournemouth",   "Brentford":     "Brentford",
-        "Brighton":      "Brighton",      "Chelsea":       "Chelsea",
-        "Crystal Palace":"Crystal Palace","Everton":       "Everton",
-        "Fulham":        "Fulham",        "Ipswich":       "Ipswich",
-        "Leicester":     "Leicester",     "Liverpool":     "Liverpool",
-        "Man City":      "Man City",      "Man Utd":       "Man United",
-        "Newcastle":     "Newcastle",     "Nott'm Forest": "Nottm Forest",
-        "Southampton":   "Southampton",   "Spurs":         "Tottenham",
-        "West Ham":      "West Ham",      "Wolves":        "Wolves",
-        "Sunderland":    "Sunderland",    "Leeds":         "Leeds United",
-        "Burnley":       "Burnley",       "Luton":         "Luton Town",
-    }
-    id_to_name = {
-        int(row["id"]): name_map.get(str(row["name"]), str(row["name"]))
-        for _, row in teams_df.iterrows()
-    }
-
-    # Initialise table
-    table = {
-        tid: {"name": id_to_name.get(tid, str(tid)),
-              "played": 0, "win": 0, "draw": 0, "loss": 0,
-              "gf": 0, "ga": 0, "gd": 0, "points": 0}
-        for tid in id_to_name
-    }
-
-    # Process every finished fixture
-    for fx in fixtures:
-        if not fx.get("finished"):
-            continue
-        h_id = fx.get("team_h")
-        a_id = fx.get("team_a")
-        hg   = fx.get("team_h_score")
-        ag   = fx.get("team_a_score")
-        if h_id not in table or a_id not in table:
-            continue
-        if hg is None or ag is None:
-            continue
-        hg, ag = int(hg), int(ag)
-
-        for tid, gf, ga in [(h_id, hg, ag), (a_id, ag, hg)]:
-            t = table[tid]
-            t["played"] += 1
-            t["gf"]     += gf
-            t["ga"]     += ga
-            t["gd"]     += gf - ga
-            if gf > ga:
-                t["win"]    += 1
-                t["points"] += 3
-            elif gf == ga:
-                t["draw"]   += 1
-                t["points"] += 1
-            else:
-                t["loss"]   += 1
-
-    # Sort: pts desc, gd desc, gf desc
-    ranked = sorted(
-        table.values(),
-        key=lambda x: (-x["points"], -x["gd"], -x["gf"])
-    )
-    for i, row in enumerate(ranked):
-        row["position"] = i + 1
-
-    return ranked
+        raise HTTPException(500, f"Could not fetch PL table: {e}")
 
 
 @app.get("/api/players/{player_id}")
@@ -1059,6 +1022,39 @@ def save_challenge_result(req: ChallengeResultRequest, current_user: dict = Depe
     )
     return {"ok": True}
 
+
+@app.post("/api/user/challenge-state")
+def save_challenge_state(req: dict, current_user: dict = Depends(get_current_user)):
+    """Save user's challenge team state (for cross-browser sync)."""
+    db = get_db()
+    db.challenge_state.update_one(
+        {"user_id": current_user["sub"]},
+        {"$set": {
+            "user_id":   current_user["sub"],
+            "gw":        req.get("gw"),
+            "team":      req.get("team"),
+            "remaining": req.get("remaining"),
+            "saved_at":  datetime.utcnow(),
+        }},
+        upsert=True
+    )
+    return {"ok": True}
+
+
+@app.get("/api/user/challenge-state")
+def load_challenge_state(current_user: dict = Depends(get_current_user)):
+    """Load user's challenge team state."""
+    db  = get_db()
+    doc = db.challenge_state.find_one({"user_id": current_user["sub"]})
+    if not doc:
+        return {"found": False}
+    return {
+        "found":     True,
+        "gw":        doc.get("gw"),
+        "team":      doc.get("team"),
+        "remaining": doc.get("remaining"),
+    }
+
 @app.post("/api/community/join")
 def community_join(req: CommunityJoinRequest):
     db = get_db()
@@ -1072,6 +1068,3 @@ def community_join(req: CommunityJoinRequest):
         "joined_at": datetime.utcnow(),
     })
     return {"ok": True, "message": "Welcome to the community!"}
-
-
-
