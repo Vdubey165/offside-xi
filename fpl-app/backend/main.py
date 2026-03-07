@@ -683,39 +683,83 @@ def fpl_fixtures(event: Optional[int] = None):
 
 @app.get("/api/pl/table")
 def pl_table():
-    """Fetches PL standings from ESPN API — free, no key, all 20 real teams."""
+    """
+    Build the real Premier League table by computing W/D/L/GD/Pts
+    from every finished FPL fixture. This is the only reliable way —
+    the FPL teams endpoint win/draw/loss fields are not real league stats.
+    """
+    BASE_URL = "https://fantasy.premierleague.com/api"
     try:
-        r = requests.get(
-            "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings",
-            timeout=10
-        ).json()
-
-        result = []
-        for group in r.get("children", [r]):
-            for entry in group.get("standings", {}).get("entries", []):
-                team = entry.get("team", {})
-                stats = {s["name"]: s["value"] for s in entry.get("stats", [])}
-                result.append({
-                    "position": int(stats.get("rank", 99)),
-                    "name":     team.get("displayName", team.get("name", "")),
-                    "played":   int(stats.get("gamesPlayed", 0)),
-                    "win":      int(stats.get("wins", 0)),
-                    "draw":     int(stats.get("ties", 0)),
-                    "loss":     int(stats.get("losses", 0)),
-                    "gf":       int(stats.get("pointsFor", 0)),
-                    "ga":       int(stats.get("pointsAgainst", 0)),
-                    "gd":       int(stats.get("pointDifferential", 0)),
-                    "points":   int(stats.get("points", 0)),
-                })
-
-        if not result:
-            raise Exception("No standings entries found")
-
-        result.sort(key=lambda x: x["position"])
-        return result
-
+        boot     = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
+        fixtures = requests.get(f"{BASE_URL}/fixtures/",         timeout=10).json()
+        teams_df = pd.DataFrame(boot["teams"])
     except Exception as e:
-        raise HTTPException(500, f"Could not fetch PL table: {e}")
+        raise HTTPException(500, f"Could not fetch FPL data: {e}")
+
+    # id → display name mapping
+    name_map = {
+        "Arsenal":       "Arsenal",       "Aston Villa":  "Aston Villa",
+        "Bournemouth":   "Bournemouth",   "Brentford":    "Brentford",
+        "Brighton":      "Brighton",      "Chelsea":      "Chelsea",
+        "Crystal Palace":"Crystal Palace","Everton":      "Everton",
+        "Fulham":        "Fulham",        "Leeds":        "Leeds",
+        "Liverpool":     "Liverpool",     "Man City":     "Man City",
+        "Man Utd":       "Man United",    "Newcastle":    "Newcastle",
+        "Nott'm Forest": "Nottm Forest",  "Spurs":        "Tottenham",
+        "Sunderland":    "Sunderland",    "Burnley":      "Burnley",
+        "West Ham":      "West Ham",      "Wolves":       "Wolves",
+    }
+    id_to_name = {
+        int(row["id"]): name_map.get(str(row["name"]), str(row["name"]))
+        for _, row in teams_df.iterrows()
+    }
+
+    # Initialise table
+    table = {
+        tid: {"name": id_to_name.get(tid, str(tid)),
+              "played": 0, "win": 0, "draw": 0, "loss": 0,
+              "gf": 0, "ga": 0, "gd": 0, "points": 0}
+        for tid in id_to_name
+    }
+
+    # Process every finished fixture
+    for fx in fixtures:
+        if not fx.get("finished"):
+            continue
+        h_id = fx.get("team_h")
+        a_id = fx.get("team_a")
+        hg   = fx.get("team_h_score")
+        ag   = fx.get("team_a_score")
+        if h_id not in table or a_id not in table:
+            continue
+        if hg is None or ag is None:
+            continue
+        hg, ag = int(hg), int(ag)
+
+        for tid, gf, ga in [(h_id, hg, ag), (a_id, ag, hg)]:
+            t = table[tid]
+            t["played"] += 1
+            t["gf"]     += gf
+            t["ga"]     += ga
+            t["gd"]     += gf - ga
+            if gf > ga:
+                t["win"]    += 1
+                t["points"] += 3
+            elif gf == ga:
+                t["draw"]   += 1
+                t["points"] += 1
+            else:
+                t["loss"]   += 1
+
+    # Sort: pts desc, gd desc, gf desc
+    ranked = sorted(
+        table.values(),
+        key=lambda x: (-x["points"], -x["gd"], -x["gf"])
+    )
+    for i, row in enumerate(ranked):
+        row["position"] = i + 1
+
+    return ranked
 
 
 @app.get("/api/players/{player_id}")
