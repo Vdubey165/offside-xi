@@ -462,8 +462,8 @@ def fetch_fpl_squad(team_id: int):
 
         entry_gw = entry_r.get("current_event") or current_gw
         picks_gw = min(current_gw, entry_gw)
-        itb      = entry_r.get("last_deadline_bank", 0) / 10
-        free_tf  = entry_r.get("last_deadline_free_transfers", 1) or 1
+        itb      = (entry_r.get("last_deadline_bank") or 0) / 10
+        free_tf  = entry_r.get("last_deadline_free_transfers") or 1
 
         picks_r = None
         used_gw = picks_gw
@@ -683,62 +683,35 @@ def fpl_fixtures(event: Optional[int] = None):
 
 @app.get("/api/pl/table")
 def pl_table():
-    """Builds PL standings from current season FPL fixtures only."""
+    """Fetches PL standings from ESPN API — free, no key, all 20 real teams."""
     try:
-        boot = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
-        teams_df  = pd.DataFrame(boot["teams"])
-        events_df = pd.DataFrame(boot["events"])
-
-        # Only use GWs 1–38 of current season (all events in bootstrap ARE current season)
-        valid_gw_ids = set(events_df["id"].tolist())
-
-        # Fetch only finished fixtures
-        fixtures = requests.get(
-            "https://fantasy.premierleague.com/api/fixtures/?finished=true",
+        r = requests.get(
+            "https://site.api.espn.com/apis/v2/sports/soccer/eng.1/standings",
             timeout=10
         ).json()
 
-        from collections import defaultdict
-        standings = defaultdict(lambda: {"played":0,"win":0,"draw":0,"loss":0,"gf":0,"ga":0,"points":0})
-
-        for f in fixtures:
-            # Skip fixtures not in current season's GWs
-            if f.get("event") not in valid_gw_ids:
-                continue
-            h, a   = f["team_h"], f["team_a"]
-            hs, as_ = f["team_h_score"], f["team_a_score"]
-            if hs is None or as_ is None:
-                continue
-            standings[h]["played"] += 1; standings[h]["gf"] += hs; standings[h]["ga"] += as_
-            standings[a]["played"] += 1; standings[a]["gf"] += as_; standings[a]["ga"] += hs
-            if hs > as_:
-                standings[h]["win"] += 1; standings[h]["points"] += 3
-                standings[a]["loss"] += 1
-            elif hs < as_:
-                standings[a]["win"] += 1; standings[a]["points"] += 3
-                standings[h]["loss"] += 1
-            else:
-                standings[h]["draw"] += 1; standings[h]["points"] += 1
-                standings[a]["draw"] += 1; standings[a]["points"] += 1
-
-        team_map = {t["id"]: t["name"] for _, t in teams_df.iterrows()}
         result = []
-        for tid, s in standings.items():
-            result.append({
-                "position": 0,
-                "name":     team_map.get(tid, str(tid)),
-                "played":   s["played"],
-                "win":      s["win"],
-                "draw":     s["draw"],
-                "loss":     s["loss"],
-                "gf":       s["gf"],
-                "ga":       s["ga"],
-                "gd":       s["gf"] - s["ga"],
-                "points":   s["points"],
-            })
-        result.sort(key=lambda x: (-x["points"], -x["gd"], -x["gf"]))
-        for i, r in enumerate(result, 1):
-            r["position"] = i
+        for group in r.get("children", [r]):
+            for entry in group.get("standings", {}).get("entries", []):
+                team = entry.get("team", {})
+                stats = {s["name"]: s["value"] for s in entry.get("stats", [])}
+                result.append({
+                    "position": int(stats.get("rank", 99)),
+                    "name":     team.get("displayName", team.get("name", "")),
+                    "played":   int(stats.get("gamesPlayed", 0)),
+                    "win":      int(stats.get("wins", 0)),
+                    "draw":     int(stats.get("ties", 0)),
+                    "loss":     int(stats.get("losses", 0)),
+                    "gf":       int(stats.get("pointsFor", 0)),
+                    "ga":       int(stats.get("pointsAgainst", 0)),
+                    "gd":       int(stats.get("pointDifferential", 0)),
+                    "points":   int(stats.get("points", 0)),
+                })
+
+        if not result:
+            raise Exception("No standings entries found")
+
+        result.sort(key=lambda x: x["position"])
         return result
 
     except Exception as e:
