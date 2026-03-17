@@ -1,4 +1,3 @@
-
 const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
 
 // Wake up Render free tier the moment the app loads
@@ -53,6 +52,7 @@ export const api = {
   getPlTable:        ()         => req("/pl/table"),
   getPlayerDetail:   (playerId)          => req(`/players/${playerId}`),
   getGwPoints:          (gw, playerIds)     => req(`/gw-points/${gw}?player_ids=${playerIds.join(",")}`),
+  fplEntry:             (teamId)            => req(`/fpl/entry/${teamId}`),
   communityJoin:        (body)              => req("/community/join", { method: "POST", body: JSON.stringify(body) }),
   saveChallengeState:   (body, token)       => req("/user/challenge-state", { method: "POST", body: JSON.stringify(body), headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` } }),
   loadChallengeState:   (token)             => req("/user/challenge-state", { headers: { "Authorization": `Bearer ${token}` } }),

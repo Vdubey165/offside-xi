@@ -27,11 +27,36 @@ const NAV = [
 ];
 
 // ─── FPL-STYLE TOPBAR ─────────────────────────────────────────────────────────
+function useFplProfile(fplTeamId) {
+  const [rank,   setRank]   = useState(null);
+  const [budget, setBudget] = useState(null);
+
+  useEffect(() => {
+    if (!fplTeamId) { setRank(null); setBudget(null); return; }
+    const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
+    fetch(`${BASE}/fpl/entry/${fplTeamId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        setRank(data.overall_rank);
+        setBudget(data.last_deadline_bank != null ? (data.last_deadline_bank / 10).toFixed(1) : null);
+      })
+      .catch(() => {});
+  }, [fplTeamId]);
+
+  return { rank, budget };
+}
+
 function Topbar({ active, setActive, onAuthClick }) {
   const { gw, loading } = useGameweek();
   const { user, logout } = useAuth();
+  const { rank, budget } = useFplProfile(user?.fpl_team_id);
   const gwLabel = loading ? "···" : gw ? `Gameweek ${gw}` : "Premier League";
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const rankLabel   = rank   ? (rank >= 1000 ? `${(rank/1000).toFixed(0)}k` : rank) : user?.fpl_team_id ? "···" : "—";
+  const budgetLabel = budget != null ? `£${budget}m` : user?.fpl_team_id ? "···" : "—";
+
   return (
     <header style={{
       height:52, flexShrink:0,
@@ -113,7 +138,7 @@ function Topbar({ active, setActive, onAuthClick }) {
             fontSize:10,fontWeight:900,color:"rgba(255,255,255,0.8)",
             fontFamily:"'Barlow Condensed',monospace",letterSpacing:"0.04em",lineHeight:1,
           }}>
-            124k
+            {rankLabel}
           </div>
           <div style={{
             fontSize:7.5,color:"rgba(255,255,255,0.28)",
@@ -165,7 +190,7 @@ function Topbar({ active, setActive, onAuthClick }) {
             color:"#ebff00",
             fontFamily:"'Barlow Condensed',monospace",letterSpacing:"0.02em",lineHeight:1,
           }}>
-            £0.2m
+            {budgetLabel}
           </div>
           <div style={{
             fontSize:7.5,color:"rgba(255,255,255,0.28)",

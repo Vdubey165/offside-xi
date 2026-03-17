@@ -303,6 +303,25 @@ def health():
     }
 
 
+@app.get("/api/fpl/entry/{team_id}")
+def fpl_entry(team_id: int):
+    """Returns overall rank and bank for a given FPL team ID."""
+    try:
+        r = requests.get(f"https://fantasy.premierleague.com/api/entry/{team_id}/", timeout=10).json()
+        if "detail" in r:
+            raise HTTPException(404, f"Team ID {team_id} not found.")
+        return {
+            "overall_rank":        r.get("summary_overall_rank"),
+            "last_deadline_bank":  r.get("last_deadline_bank"),
+            "team_name":           r.get("name"),
+            "player_name":         f"{r.get('player_first_name','')} {r.get('player_last_name','')}".strip(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 @app.get("/api/predictions/status")
 def predictions_status():
     """

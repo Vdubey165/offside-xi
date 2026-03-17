@@ -24,6 +24,14 @@ export default function TransferPlanner() {
     }
   }, [user?.fpl_team_id]);
 
+  // Auto-fetch squad once Team ID is populated from auth
+  useEffect(() => {
+    if (teamId && !squadData && !loadingSquad) {
+      fetchSquad();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamId]);
+
   async function fetchSquad() {
     if (!teamId) return;
     setLoadingSquad(true); setError(null); setSquadData(null); setResult(null); setLocked([]);
