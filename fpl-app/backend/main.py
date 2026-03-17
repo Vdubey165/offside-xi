@@ -969,6 +969,82 @@ def debug_player_match(player_id: int):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SQUAD SNAPSHOT — locks AI squad per GW so scoring is always fair
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/squad/snapshot/{gw}")
+def snapshot_squad(gw: int):
+    """
+    Called automatically by the frontend when the page loads for a given GW.
+    If no snapshot exists for this GW yet, runs the optimizer and saves the
+    result to MongoDB. Subsequent calls return the same locked squad.
+    This ensures scoring always uses the squad that was picked BEFORE
+    the retrain runs, not whatever the model currently recommends.
+    """
+    from datetime import datetime as dt
+    db = get_db()
+
+    # Return existing snapshot if already locked for this GW
+    existing = db.squad_snapshots.find_one({"gw": gw})
+    if existing:
+        existing.pop("_id", None)
+        return existing
+
+    # No snapshot yet — generate and lock it now
+    df         = get_predictions().copy()
+    df         = df[df["status"] == "a"].reset_index(drop=True)
+    budget_raw = int(100 * 10)
+
+    if len(df) < 15:
+        raise HTTPException(400, "Not enough available players to build a squad.")
+
+    squad    = _run_squad_ilp(df, budget_raw)
+    starters = squad[squad["is_starter"] == True]
+    bench    = squad[squad["is_starter"] == False]
+    cols     = ["player_id", "web_name", "team_name", "position", "price", "predicted_pts", "is_starter"]
+
+    starters_sorted   = starters.sort_values("predicted_pts", ascending=False)
+    captain_name      = starters_sorted.iloc[0]["web_name"]
+    vice_captain_name = starters_sorted.iloc[1]["web_name"]
+
+    snapshot = {
+        "gw":               gw,
+        "snapshotted_at":   dt.utcnow().isoformat(),
+        "total_cost":       round(squad["now_cost"].sum() / 10, 1),
+        "predicted_points": round(float(starters["predicted_pts"].sum()), 2),
+        "captain":          captain_name,
+        "vice_captain":     vice_captain_name,
+        "starters":         starters[cols].fillna(0).to_dict(orient="records"),
+        "bench":            bench[cols].fillna(0).to_dict(orient="records"),
+    }
+
+    # Convert numpy types
+    def clean(obj):
+        if isinstance(obj, list):
+            return [clean(i) for i in obj]
+        if isinstance(obj, dict):
+            return {k: clean(v) for k, v in obj.items()}
+        if hasattr(obj, "item"):
+            return obj.item()
+        return obj
+
+    snapshot = clean(snapshot)
+    db.squad_snapshots.insert_one({"_id": f"gw_{gw}", **snapshot})
+    return snapshot
+
+
+@app.get("/api/squad/snapshot/{gw}")
+def get_squad_snapshot(gw: int):
+    """Returns the locked AI squad snapshot for a given GW, or 404 if none exists."""
+    db  = get_db()
+    doc = db.squad_snapshots.find_one({"gw": gw})
+    if not doc:
+        raise HTTPException(404, f"No snapshot found for GW{gw}")
+    doc.pop("_id", None)
+    return doc
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # RETRAIN ENDPOINT — rebuilds features + predictions, saves to MongoDB
 # ══════════════════════════════════════════════════════════════════════════════
 

@@ -430,7 +430,11 @@ export default function MainPitch() {
     async function load() {
       try {
         setLoading(true); setError(null);
-        const data = await api.optimizeSquad(100);
+        // Use snapshot for current GW — ensures AI squad is locked before retrain
+        // POST creates snapshot if it doesn't exist, returns existing if it does
+        const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
+        const snapRes = await fetch(`${BASE}/squad/snapshot/${gw}`, { method: "POST" });
+        const data = snapRes.ok ? await snapRes.json() : await api.optimizeSquad(100);
         setSquad(data);
         const remaining = parseFloat((100 - (parseFloat(data.total_cost)||0)).toFixed(1));
         setRemainingBudget(remaining);
