@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGameweek } from "./hooks/useGameweek";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import AuthModal from "./components/AuthModal";
