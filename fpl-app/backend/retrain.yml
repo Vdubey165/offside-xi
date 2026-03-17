@@ -1,0 +1,43 @@
+name: Weekly FPL Predictions Retrain
+
+on:
+  schedule:
+    # Every Thursday at 22:00 UTC (11pm BST / 3:30am IST Friday)
+    # FPL GW data typically settles by Thursday evening after the midweek games
+    - cron: "0 22 * * 4"
+
+  # Also allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual retrain"
+        required: false
+        default: "Manual trigger"
+
+jobs:
+  retrain:
+    name: Retrain FPL predictions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Trigger retrain endpoint
+        run: |
+          echo "Triggering prediction retrain on Render backend..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://offside-xi-backend.onrender.com/api/retrain?secret=${{ secrets.RETRAIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --max-time 120)
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Retrain failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "Retrain successful!"

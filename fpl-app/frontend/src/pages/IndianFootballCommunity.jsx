@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "../api/client";
+import IndiaFootballQuiz from "./IndiaFootballQuiz";
 
 // ─── STATIC DATA ──────────────────────────────────────────────────────────────
 const STATS = [
@@ -9,26 +10,10 @@ const STATS = [
 ];
 
 const PILLARS = [
-  {
-    icon: "grassroots",
-    title: "Grassroots First",
-    desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground.",
-  },
-  {
-    icon: "data",
-    title: "Data Meets Passion",
-    desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand.",
-  },
-  {
-    icon: "location",
-    title: "Every City. Every Lane.",
-    desc: "From Kolkata's maidan to Mumbai's slums to Shillong's hills — Indian football lives in places no broadcast camera has reached.",
-  },
-  {
-    icon: "community",
-    title: "Community Over Celebrity",
-    desc: "We are not building a fanbase. We are building a movement. Owned by the people who show up — not just by those who watch.",
-  },
+  { icon: "grassroots", title: "Grassroots First",        desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground." },
+  { icon: "data",       title: "Data Meets Passion",      desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand." },
+  { icon: "location",   title: "Every City. Every Lane.", desc: "From Kolkata's maidan to Mumbai's slums to Shillong's hills — Indian football lives in places no broadcast camera has reached." },
+  { icon: "community",  title: "Community Over Celebrity",desc: "We are not building a fanbase. We are building a movement. Owned by the people who show up — not just by those who watch." },
 ];
 
 const VOICES = [
@@ -78,11 +63,11 @@ function AnimatedCounter({ target, duration = 2000 }) {
 
 // ─── JOIN FORM ────────────────────────────────────────────────────────────────
 function JoinForm() {
-  const [step,    setStep]    = useState(0); // 0=form 1=loading 2=success
-  const [city,    setCity]    = useState("");
-  const [role,    setRole]    = useState("");
-  const [email,   setEmail]   = useState("");
-  const [error,   setError]   = useState("");
+  const [step,  setStep]  = useState(0);
+  const [city,  setCity]  = useState("");
+  const [role,  setRole]  = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
   const roles = ["Player", "Coach", "Scout", "Fan", "Journalist", "Club Official"];
 
   const handleJoin = async () => {
@@ -122,9 +107,7 @@ function JoinForm() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
           {roles.map(r => (
             <button key={r} className={`filter-pill ${role === r ? "active" : ""}`}
-              onClick={() => setRole(r === role ? "" : r)}>
-              {r}
-            </button>
+              onClick={() => setRole(r === role ? "" : r)}>{r}</button>
           ))}
         </div>
       </div>
@@ -133,8 +116,7 @@ function JoinForm() {
           {error}
         </div>
       )}
-      <button className="btn btn-primary"
-        onClick={handleJoin}
+      <button className="btn btn-primary" onClick={handleJoin}
         disabled={step === 1 || !email || !city}
         style={{ width: "100%", marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         {step === 1 ? <><div className="spinner" style={{ width: 13, height: 13 }} />Joining…</> : <>Join the Movement <Icon name="arrow" size={13} /></>}
@@ -149,100 +131,86 @@ export default function IndianFootballCommunity() {
   return (
     <div>
       <style>{`
-        @keyframes indiaMarquee    { from{transform:translateX(0)} to{transform:translateX(-50%)} }
-        @keyframes indiaDotPulse   { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:0.8;transform:scale(1.5)} }
-        @keyframes indiaGlowPulse  { 0%,100%{opacity:0.4} 50%{opacity:1} }
+        @keyframes indiaMarquee   { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+        @keyframes indiaDotPulse  { 0%,100%{opacity:0.3;transform:scale(1)} 50%{opacity:0.8;transform:scale(1.5)} }
+        @keyframes indiaGlowPulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
       `}</style>
 
       {/* ── HERO ── */}
-      <div style={{
-        position: "relative", overflow: "hidden",
-        background: "linear-gradient(135deg, #04090f 0%, #081828 100%)",
-        border: "1px solid var(--border)", borderRadius: "var(--radius-lg)",
-        padding: "48px 40px", marginBottom: 20, textAlign: "center",
-      }}>
-        <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(5,240,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(5,240,255,1) 1px,transparent 1px)", backgroundSize: "50px 50px", opacity: 0.015, pointerEvents: "none" }}/>
-        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 70% 50% at 50% 50%, rgba(5,240,255,0.05) 0%, transparent 70%)", pointerEvents: "none" }}/>
-        <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+      <div style={{ position:"relative", overflow:"hidden", background:"linear-gradient(135deg,#04090f 0%,#081828 100%)", border:"1px solid var(--border)", borderRadius:"var(--radius-lg)", padding:"48px 40px", marginBottom:20, textAlign:"center" }}>
+        <div style={{ position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(5,240,255,1) 1px,transparent 1px),linear-gradient(90deg,rgba(5,240,255,1) 1px,transparent 1px)",backgroundSize:"50px 50px",opacity:0.015,pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",inset:0,background:"radial-gradient(ellipse 70% 50% at 50% 50%,rgba(5,240,255,0.05) 0%,transparent 70%)",pointerEvents:"none" }}/>
+        <div style={{ position:"absolute",inset:0,overflow:"hidden",pointerEvents:"none" }}>
           {CITIES.map((city, i) => (
-            <div key={city} style={{ position: "absolute", left: `${8 + (i * 6.2) % 85}%`, top: `${10 + (i * 13.7) % 80}%`, animation: `indiaDotPulse ${2.5 + (i % 4) * 0.5}s ease-in-out infinite`, animationDelay: `${i * 0.3}s` }}>
-              <div style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(5,240,255,0.35)", boxShadow: "0 0 6px rgba(5,240,255,0.25)" }}/>
+            <div key={city} style={{ position:"absolute", left:`${8+(i*6.2)%85}%`, top:`${10+(i*13.7)%80}%`, animation:`indiaDotPulse ${2.5+(i%4)*0.5}s ease-in-out infinite`, animationDelay:`${i*0.3}s` }}>
+              <div style={{ width:5,height:5,borderRadius:"50%",background:"rgba(5,240,255,0.35)",boxShadow:"0 0 6px rgba(5,240,255,0.25)" }}/>
             </div>
           ))}
         </div>
-
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "4px 14px", borderRadius: 20, marginBottom: 20, background: "rgba(5,240,255,0.06)", border: "1px solid rgba(5,240,255,0.18)" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--cyan)", boxShadow: "0 0 6px var(--cyan)", display: "inline-block", animation: "indiaGlowPulse 1.8s ease-in-out infinite" }}/>
-            <span style={{ fontSize: 9, fontWeight: 900, color: "var(--cyan)", fontFamily: "var(--mono)", letterSpacing: "0.2em", textTransform: "uppercase" }}>Indian Football · Ground Up Movement</span>
+        <div style={{ position:"relative",zIndex:1 }}>
+          <div style={{ display:"inline-flex",alignItems:"center",gap:7,padding:"4px 14px",borderRadius:20,marginBottom:20,background:"rgba(5,240,255,0.06)",border:"1px solid rgba(5,240,255,0.18)" }}>
+            <span style={{ width:6,height:6,borderRadius:"50%",background:"var(--cyan)",boxShadow:"0 0 6px var(--cyan)",display:"inline-block",animation:"indiaGlowPulse 1.8s ease-in-out infinite" }}/>
+            <span style={{ fontSize:9,fontWeight:900,color:"var(--cyan)",fontFamily:"var(--mono)",letterSpacing:"0.2em",textTransform:"uppercase" }}>Indian Football · Ground Up Movement</span>
           </div>
-
-          <h1 style={{ fontSize: "clamp(32px,5vw,58px)", fontWeight: 900, lineHeight: 0.95, marginBottom: 14, fontFamily: "var(--font)", letterSpacing: "-0.01em" }}>
-            <span style={{ color: "#fff" }}>भारत का </span>
-            <span style={{ color: "var(--cyan)" }}>खेल</span>
-            <br/>
-            <span style={{ fontSize: "50%", color: "rgba(255,255,255,0.28)", fontStyle: "italic" }}>India's Game.</span>
+          <h1 style={{ fontSize:"clamp(32px,5vw,58px)",fontWeight:900,lineHeight:0.95,marginBottom:14,fontFamily:"var(--font)",letterSpacing:"-0.01em" }}>
+            <span style={{ color:"#fff" }}>भारत का </span><span style={{ color:"var(--cyan)" }}>खेल</span><br/>
+            <span style={{ fontSize:"50%",color:"rgba(255,255,255,0.28)",fontStyle:"italic" }}>India's Game.</span>
           </h1>
-
-          <p style={{ fontSize: 13, color: "var(--text2)", maxWidth: 500, margin: "0 auto 24px", lineHeight: 1.7, fontFamily: "var(--font)" }}>
+          <p style={{ fontSize:13,color:"var(--text2)",maxWidth:500,margin:"0 auto 24px",lineHeight:1.7,fontFamily:"var(--font)" }}>
             We are not waiting for Indian football to be discovered.<br/>
-            <strong style={{ color: "#fff" }}>We are building it. From every lane, every maidan, every city.</strong>
+            <strong style={{ color:"#fff" }}>We are building it. From every lane, every maidan, every city.</strong>
           </p>
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <a href="#india-join" className="btn btn-primary" style={{ textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
-              Join the Movement <Icon name="arrow" size={13} />
-            </a>
-            <a href="#india-vision" className="btn" style={{ textDecoration: "none", background: "transparent", border: "1px solid var(--border2)", color: "var(--text2)" }}>
-              Our Vision
-            </a>
+          <div style={{ display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap" }}>
+            <a href="#india-join" className="btn btn-primary" style={{ textDecoration:"none",display:"inline-flex",alignItems:"center",gap:6 }}>Join the Movement <Icon name="arrow" size={13}/></a>
+            <a href="#india-vision" className="btn" style={{ textDecoration:"none",background:"transparent",border:"1px solid var(--border2)",color:"var(--text2)" }}>Our Vision</a>
           </div>
         </div>
       </div>
 
       {/* ── STATS ── */}
-      <div className="stats-row" style={{ marginBottom: 20 }}>
-        {STATS.map((s, i) => (
-          <div key={i} className="stat-card" style={{ textAlign: "center" }}>
-            <div className="stat-value cyan"><AnimatedCounter target={s.val} /></div>
-            <div className="stat-label" style={{ marginTop: 6 }}>{s.label}</div>
+      <div className="stats-row" style={{ marginBottom:20 }}>
+        {STATS.map((s,i) => (
+          <div key={i} className="stat-card" style={{ textAlign:"center" }}>
+            <div className="stat-value cyan"><AnimatedCounter target={s.val}/></div>
+            <div className="stat-label" style={{ marginTop:6 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
+      {/* ── QUIZ ── */}
+      <div style={{ marginBottom:20 }}>
+        <IndiaFootballQuiz />
+      </div>
+
       {/* ── PILLARS ── */}
-      <div id="india-vision" className="card" style={{ marginBottom: 20 }}>
+      <div id="india-vision" className="card" style={{ marginBottom:20 }}>
         <div className="card-title">What We Stand For</div>
         <div className="two-col">
-          {PILLARS.map((p, i) => (
-            <div key={i} style={{
-              padding: "14px 16px", borderRadius: "var(--radius)",
-              background: "var(--bg3)", border: "1px solid var(--border)",
-              transition: "border-color 0.14s, transform 0.14s", cursor: "default",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--border2)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)";  e.currentTarget.style.transform = "translateY(0)"; }}>
-              <div style={{ marginBottom: 10 }}><Icon name={p.icon} size={22} /></div>
-              <div style={{ fontSize: 13, fontWeight: 900, color: "#fff", fontFamily: "var(--font)", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>{p.title}</div>
-              <div style={{ fontSize: 11.5, color: "var(--text2)", lineHeight: 1.7, fontFamily: "var(--font)" }}>{p.desc}</div>
+          {PILLARS.map((p,i) => (
+            <div key={i} style={{ padding:"14px 16px",borderRadius:"var(--radius)",background:"var(--bg3)",border:"1px solid var(--border)",transition:"border-color 0.14s,transform 0.14s",cursor:"default" }}
+              onMouseEnter={e=>{ e.currentTarget.style.borderColor="var(--border2)"; e.currentTarget.style.transform="translateY(-2px)"; }}
+              onMouseLeave={e=>{ e.currentTarget.style.borderColor="var(--border)";  e.currentTarget.style.transform="translateY(0)"; }}>
+              <div style={{ marginBottom:10 }}><Icon name={p.icon} size={22}/></div>
+              <div style={{ fontSize:13,fontWeight:900,color:"#fff",fontFamily:"var(--font)",textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:6 }}>{p.title}</div>
+              <div style={{ fontSize:11.5,color:"var(--text2)",lineHeight:1.7,fontFamily:"var(--font)" }}>{p.desc}</div>
             </div>
           ))}
         </div>
       </div>
 
       {/* ── VOICES ── */}
-      <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card" style={{ marginBottom:20 }}>
         <div className="card-title">Voices From The Ground</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-          {VOICES.map((v, i) => (
-            <div key={i} style={{ padding: "14px", borderRadius: "var(--radius)", background: "var(--bg3)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 24, color: "rgba(5,240,255,0.12)", fontFamily: "Georgia, serif", lineHeight: 0.8 }}>"</div>
-              <p style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.7, fontFamily: "var(--font)", flex: 1 }}>{v.quote}</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: "rgba(5,240,255,0.08)", border: "1.5px solid rgba(5,240,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 900, color: "var(--cyan)", fontFamily: "var(--mono)" }}>{v.initials}</div>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12 }}>
+          {VOICES.map((v,i) => (
+            <div key={i} style={{ padding:"14px",borderRadius:"var(--radius)",background:"var(--bg3)",border:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:10 }}>
+              <div style={{ fontSize:24,color:"rgba(5,240,255,0.12)",fontFamily:"Georgia,serif",lineHeight:0.8 }}>"</div>
+              <p style={{ fontSize:12,color:"var(--text2)",lineHeight:1.7,fontFamily:"var(--font)",flex:1 }}>{v.quote}</p>
+              <div style={{ display:"flex",alignItems:"center",gap:8,paddingTop:8,borderTop:"1px solid var(--border)" }}>
+                <div style={{ width:28,height:28,borderRadius:"50%",flexShrink:0,background:"rgba(5,240,255,0.08)",border:"1.5px solid rgba(5,240,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:900,color:"var(--cyan)",fontFamily:"var(--mono)" }}>{v.initials}</div>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#fff", fontFamily: "var(--font)" }}>{v.name}</div>
-                  <div style={{ fontSize: 9.5, color: "var(--text3)", fontFamily: "var(--mono)" }}>{v.city}</div>
+                  <div style={{ fontSize:11,fontWeight:700,color:"#fff",fontFamily:"var(--font)" }}>{v.name}</div>
+                  <div style={{ fontSize:9.5,color:"var(--text3)",fontFamily:"var(--mono)" }}>{v.city}</div>
                 </div>
               </div>
             </div>
@@ -251,32 +219,32 @@ export default function IndianFootballCommunity() {
       </div>
 
       {/* ── JOIN ── */}
-      <div id="india-join" className="card" style={{ marginBottom: 20, maxWidth: 560 }}>
+      <div id="india-join" className="card" style={{ marginBottom:20,maxWidth:560 }}>
         <div className="card-title">Be Part Of Something Real</div>
-        <p style={{ fontSize: 12, color: "var(--text2)", marginBottom: 18, lineHeight: 1.7, fontFamily: "var(--font)" }}>
+        <p style={{ fontSize:12,color:"var(--text2)",marginBottom:18,lineHeight:1.7,fontFamily:"var(--font)" }}>
           Indian football doesn't need spectators.<br/>
-          <strong style={{ color: "#fff" }}>It needs people who show up.</strong>
+          <strong style={{ color:"#fff" }}>It needs people who show up.</strong>
         </p>
         <JoinForm />
       </div>
 
       {/* ── CITY MARQUEE ── */}
-      <div style={{ overflow: "hidden", marginBottom: 20, maskImage: "linear-gradient(90deg, transparent, black 10%, black 90%, transparent)" }}>
-        <div style={{ display: "flex", gap: 20, animation: "indiaMarquee 22s linear infinite", whiteSpace: "nowrap" }}>
-          {[...CITIES, ...CITIES].map((c, i) => (
-            <span key={i} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.15em", color: "var(--text3)", fontFamily: "var(--mono)" }}>
-              <span style={{ color: "rgba(5,240,255,0.3)", fontSize: 5 }}>●</span>{c}
+      <div style={{ overflow:"hidden",marginBottom:20,maskImage:"linear-gradient(90deg,transparent,black 10%,black 90%,transparent)" }}>
+        <div style={{ display:"flex",gap:20,animation:"indiaMarquee 22s linear infinite",whiteSpace:"nowrap" }}>
+          {[...CITIES,...CITIES].map((c,i) => (
+            <span key={i} style={{ display:"flex",alignItems:"center",gap:6,fontSize:9,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--text3)",fontFamily:"var(--mono)" }}>
+              <span style={{ color:"rgba(5,240,255,0.3)",fontSize:5 }}>●</span>{c}
             </span>
           ))}
         </div>
       </div>
 
       {/* ── FOOTER STRIP ── */}
-      <div style={{ padding: "16px 20px", borderRadius: "var(--radius)", background: "var(--bg2)", border: "1px solid var(--border)", textAlign: "center" }}>
-        <p style={{ fontSize: 12, fontWeight: 900, color: "var(--text2)", fontFamily: "var(--font)", letterSpacing: "0.04em", fontStyle: "italic" }}>
+      <div style={{ padding:"16px 20px",borderRadius:"var(--radius)",background:"var(--bg2)",border:"1px solid var(--border)",textAlign:"center" }}>
+        <p style={{ fontSize:12,fontWeight:900,color:"var(--text2)",fontFamily:"var(--font)",letterSpacing:"0.04em",fontStyle:"italic" }}>
           "No shortcuts. No hype. Just football — built from the ground up."
         </p>
-        <p style={{ fontSize: 9, color: "var(--cyan)", fontFamily: "var(--mono)", marginTop: 6, letterSpacing: "0.14em", textTransform: "uppercase", opacity: 0.5 }}>
+        <p style={{ fontSize:9,color:"var(--cyan)",fontFamily:"var(--mono)",marginTop:6,letterSpacing:"0.14em",textTransform:"uppercase",opacity:0.5 }}>
           India Football Community · Est. Now
         </p>
       </div>

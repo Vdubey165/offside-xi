@@ -99,11 +99,53 @@ def get_model():
     return _model
 
 
+def _load_predictions_from_mongo() -> pd.DataFrame | None:
+    """
+    Try to load the most recently saved predictions from MongoDB.
+    Returns a DataFrame if found, None otherwise.
+    """
+    try:
+        from pymongo import MongoClient
+        MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+        client = MongoClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=5000,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            tlsAllowInvalidHostnames=True,
+        )
+        db  = client["offside_xi"]
+        doc = db.predictions_cache.find_one({"_id": "latest"})
+        if not doc or "players" not in doc:
+            return None
+        df = pd.DataFrame(doc["players"])
+        # Patch live status from FPL API (always fresh, very fast)
+        try:
+            r          = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=8).json()
+            teams      = pd.DataFrame(r["teams"])
+            players    = pd.DataFrame(r["elements"])[["id", "status", "now_cost"]]
+            team_map   = teams.set_index("id")["name"].to_dict()
+            status_map = players.set_index("id")["status"].to_dict()
+            price_map  = players.set_index("id")["now_cost"].to_dict()
+            df["team_name"] = df["team"].map(team_map)
+            df["status"]    = df["player_id"].map(status_map).fillna("a")
+            # Update prices to live values (handles price changes since last retrain)
+            df["now_cost"]  = df["player_id"].map(price_map).fillna(df["now_cost"])
+            df["price"]     = df["now_cost"] / 10
+        except Exception:
+            pass
+        pos_map        = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
+        df["position"] = df["element_type"].map(pos_map)
+        return df
+    except Exception:
+        return None
+
+
 def _fetch_live_fpl_data() -> pd.DataFrame:
     """
-    Fallback: build a basic player DataFrame directly from the FPL API
-    when player_predictions.csv is missing (notebook not run yet).
-    Points are estimated from season total / games played.
+    Last-resort fallback: build a basic player DataFrame directly from the FPL API.
+    Used only when neither MongoDB nor the CSV have predictions.
+    Points are estimated from points_per_game (season average — no real form).
     """
     r        = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=15).json()
     teams    = pd.DataFrame(r["teams"])
@@ -113,23 +155,16 @@ def _fetch_live_fpl_data() -> pd.DataFrame:
     pos_map   = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 
     df = elements.copy()
-    df["player_id"]   = df["id"]
-    df["web_name"]    = df["web_name"]
-    df["team_name"]   = df["team"].map(team_map)
-    df["position"]    = df["element_type"].map(pos_map)
-    df["price"]       = df["now_cost"] / 10
-    df["status"]      = df["status"]
-    df["now_cost"]    = df["now_cost"]
-    df["element_type"] = df["element_type"]
-
-    # Estimate predicted_pts from recent form (points_per_game from FPL API)
+    df["player_id"]    = df["id"]
+    df["team_name"]    = df["team"].map(team_map)
+    df["position"]     = df["element_type"].map(pos_map)
+    df["price"]        = df["now_cost"] / 10
     df["predicted_pts"] = pd.to_numeric(df["points_per_game"], errors="coerce").fillna(0).round(2)
 
-    # Rolling averages — approximate from season totals
     gp = pd.to_numeric(df.get("minutes", 0), errors="coerce").fillna(0) / 90
     gp = gp.clip(lower=1)
-    df["avg_pts_last3"]  = df["predicted_pts"]
-    df["avg_xgi_last3"]  = (
+    df["avg_pts_last3"] = df["predicted_pts"]
+    df["avg_xgi_last3"] = (
         pd.to_numeric(df.get("expected_goal_involvements", 0), errors="coerce").fillna(0) / gp
     ).round(2)
 
@@ -145,8 +180,14 @@ def get_predictions() -> pd.DataFrame:
     if _predictions is not None:
         return _predictions
 
+    # ── Priority 1: MongoDB predictions_cache (survives deploys, always current) ─
+    df = _load_predictions_from_mongo()
+    if df is not None:
+        _predictions = df
+        return _predictions
+
+    # ── Priority 2: CSV on disk (notebook-generated, static) ─────────────────────
     if PREDS_PATH.exists():
-        # ── Normal path: notebook has been run ────────────────────────────────
         df = pd.read_csv(PREDS_PATH)
         try:
             r          = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
@@ -165,22 +206,22 @@ def get_predictions() -> pd.DataFrame:
         df["price"]         = df["now_cost"] / 10
         df["predicted_pts"] = df["predicted_pts"].round(2)
 
-        # Ensure rolling avg columns exist (older CSVs may not have them)
         for col in ["avg_pts_last3", "avg_xgi_last3"]:
             if col not in df.columns:
                 df[col] = df["predicted_pts"]
 
-    else:
-        # ── Fallback: notebook not run yet, use live FPL API ─────────────────
-        try:
-            df = _fetch_live_fpl_data()
-        except Exception as e:
-            raise HTTPException(
-                500,
-                f"player_predictions.csv not found at '{PREDS_PATH}' AND "
-                f"live FPL API fetch failed: {e}. "
-                "Please run your Jupyter notebook to generate predictions."
-            )
+        _predictions = df
+        return _predictions
+
+    # ── Priority 3: Live FPL API fallback (no model, season-avg points only) ─────
+    try:
+        df = _fetch_live_fpl_data()
+    except Exception as e:
+        raise HTTPException(
+            500,
+            f"All prediction sources failed. MongoDB empty, CSV missing at '{PREDS_PATH}', "
+            f"FPL API error: {e}. Run the notebook to generate fpl_model.pkl."
+        )
 
     _predictions = df
     return _predictions
@@ -874,6 +915,203 @@ def debug_player_match(player_id: int):
         "sample_csv_ids":     preds["player_id"].head(5).tolist(),
         "sample_fpl_ids":     elements["id"].head(5).tolist(),
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# RETRAIN ENDPOINT — rebuilds features + predictions, saves to MongoDB
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/retrain")
+def retrain_predictions(secret: str = ""):
+    """
+    Re-fetches live FPL event data, rebuilds rolling features for every player,
+    runs LightGBM inference, and saves results to MongoDB predictions_cache.
+
+    The in-memory _predictions cache is hot-swapped so every subsequent request
+    immediately uses the fresh data — no redeploy or restart needed.
+
+    Protection: ?secret=<RETRAIN_SECRET env var>
+    Trigger manually or via GitHub Actions cron after each GW.
+    """
+    global _predictions
+
+    RETRAIN_SECRET = os.environ.get("RETRAIN_SECRET", "offside_retrain_2025")
+    if secret != RETRAIN_SECRET:
+        raise HTTPException(403, "Invalid or missing secret. Pass ?secret=<RETRAIN_SECRET>")
+
+    if not MODEL_PATH.exists():
+        raise HTTPException(500, "fpl_model.pkl not found — run the notebook first to generate it.")
+
+    try:
+        from datetime import datetime as dt
+        model = get_model()
+
+        FPL_BASE = "https://fantasy.premierleague.com/api"
+
+        # ── 1. Bootstrap data ─────────────────────────────────────────────────
+        boot     = requests.get(f"{FPL_BASE}/bootstrap-static/", timeout=15).json()
+        elements = pd.DataFrame(boot["elements"])
+        teams    = pd.DataFrame(boot["teams"])
+        events   = pd.DataFrame(boot["events"])
+
+        team_map = teams.set_index("id")["name"].to_dict()
+        pos_map  = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
+
+        cur_rows   = events[events["is_current"] == True]
+        current_gw = int(cur_rows["id"].iloc[0]) if len(cur_rows) else int(
+            events[events["finished"] == True]["id"].max()
+        )
+
+        # ── 2. Fetch last 5 completed GWs of live event data ──────────────────
+        all_rows = []
+        gw_start = max(1, current_gw - 4)
+        for gw in range(gw_start, current_gw + 1):
+            try:
+                live = requests.get(f"{FPL_BASE}/event/{gw}/live/", timeout=12).json()
+                for el in live.get("elements", []):
+                    s = el["stats"]
+                    all_rows.append({
+                        "player_id":                    el["id"],
+                        "gw":                           gw,
+                        "total_points":                 s.get("total_points", 0),
+                        "minutes":                      s.get("minutes", 0),
+                        "bps":                          s.get("bps", 0),
+                        "ict_index":                    float(s.get("ict_index", 0) or 0),
+                        "expected_goal_involvements":   float(s.get("expected_goal_involvements", 0) or 0),
+                    })
+            except Exception:
+                continue  # skip a GW if it fails — degrade gracefully
+
+        if not all_rows:
+            raise HTTPException(500, "Could not fetch any GW live data from FPL API.")
+
+        hist = pd.DataFrame(all_rows)
+
+        # ── 3. Build rolling features per player ──────────────────────────────
+        records = []
+        for pid, grp in hist.groupby("player_id"):
+            grp  = grp.sort_values("gw")
+            pts  = grp["total_points"].values
+            mins = grp["minutes"].values
+            xgi  = grp["expected_goal_involvements"].values
+            ict  = grp["ict_index"].values
+            bps  = grp["bps"].values
+
+            avg3  = float(np.mean(pts[-3:])) if len(pts) >= 3 else float(np.mean(pts))
+            avg5  = float(np.mean(pts[-5:])) if len(pts) >= 5 else float(np.mean(pts))
+            trend = round(avg3 - avg5, 4)
+
+            records.append({
+                "player_id":         pid,
+                "avg_pts_last3":     round(avg3, 4),
+                "avg_pts_last5":     round(avg5, 4),
+                "form_trend":        trend,
+                "avg_minutes_last3": round(float(np.mean(mins[-3:])) if len(mins) >= 3 else float(np.mean(mins)), 2),
+                "avg_xgi_last3":     round(float(np.mean(xgi[-3:])) if len(xgi) >= 3 else float(np.mean(xgi)), 4),
+                "avg_ict_last3":     round(float(np.mean(ict[-3:])) if len(ict) >= 3 else float(np.mean(ict)), 4),
+                "avg_bps_last3":     round(float(np.mean(bps[-3:])) if len(bps) >= 3 else float(np.mean(bps)), 2),
+            })
+
+        feat_df = pd.DataFrame(records)
+
+        # ── 4. Merge with current player metadata ─────────────────────────────
+        el_df = elements[["id", "web_name", "element_type", "now_cost", "team", "status"]].copy()
+        el_df.rename(columns={"id": "player_id"}, inplace=True)
+        el_df["position"] = el_df["element_type"].map(pos_map)
+        el_df["team_name"] = el_df["team"].map(team_map)
+        el_df["price"]     = el_df["now_cost"] / 10
+        el_df["value"]     = el_df["now_cost"]
+
+        df = el_df.merge(feat_df, on="player_id", how="left")
+
+        # ── 5. Next fixture difficulty + home/away ─────────────────────────────
+        try:
+            next_gw       = current_gw + 1
+            fixtures_r    = requests.get(f"{FPL_BASE}/fixtures/?event={next_gw}", timeout=10).json()
+            team_diff_map = {}
+            team_home_map = {}
+            for fix in fixtures_r:
+                team_diff_map[fix["team_h"]] = fix["team_h_difficulty"]
+                team_diff_map[fix["team_a"]] = fix["team_a_difficulty"]
+                team_home_map[fix["team_h"]] = 1
+                team_home_map[fix["team_a"]] = 0
+            df["avg_fixture_difficulty"] = df["team"].map(team_diff_map).fillna(3.0)
+            df["is_home"]                = df["team"].map(team_home_map).fillna(0).astype(int)
+        except Exception:
+            df["avg_fixture_difficulty"] = 3.0
+            df["is_home"]                = 0
+
+        # ── 6. Fill any missing feature values + run inference ─────────────────
+        for col in FEATURES:
+            df[col] = pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0)
+
+        X                  = df[FEATURES].fillna(0)
+        df["predicted_pts"] = model.predict(X).round(2)
+
+        # ── 7. Save to MongoDB (persistent, survives redeploys) ────────────────
+        from pymongo import MongoClient
+        MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+        mongo     = MongoClient(
+            MONGO_URI,
+            serverSelectionTimeoutMS=10000,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            tlsAllowInvalidHostnames=True,
+        )
+        mdb = mongo["offside_xi"]
+
+        # Convert to JSON-safe records
+        save_cols = [
+            "player_id", "web_name", "team", "team_name", "element_type",
+            "position", "now_cost", "price", "status",
+            "predicted_pts", "avg_pts_last3", "avg_pts_last5", "form_trend",
+            "avg_minutes_last3", "avg_xgi_last3", "avg_ict_last3", "avg_bps_last3",
+            "is_home", "avg_fixture_difficulty", "value",
+        ]
+        save_cols = [c for c in save_cols if c in df.columns]
+        records_out = df[save_cols].fillna(0).to_dict(orient="records")
+        # Convert numpy types to native Python for MongoDB
+        for rec in records_out:
+            for k, v in rec.items():
+                if hasattr(v, "item"):
+                    rec[k] = v.item()
+
+        mdb.predictions_cache.replace_one(
+            {"_id": "latest"},
+            {
+                "_id":            "latest",
+                "players":        records_out,
+                "gameweek":       current_gw,
+                "next_gameweek":  current_gw + 1,
+                "updated_at":     dt.utcnow().isoformat(),
+                "player_count":   len(records_out),
+            },
+            upsert=True,
+        )
+
+        # ── 8. Also write to disk (belt-and-suspenders for local dev) ──────────
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            df[save_cols].to_csv(PREDS_PATH, index=False)
+        except Exception:
+            pass  # disk write failure is non-fatal — MongoDB is the source of truth
+
+        # ── 9. Hot-swap in-memory cache ────────────────────────────────────────
+        _predictions = df
+
+        return {
+            "ok":              True,
+            "players_updated": len(records_out),
+            "gameweek":        current_gw,
+            "next_gameweek":   current_gw + 1,
+            "gw_data_fetched": list(range(gw_start, current_gw + 1)),
+            "message":         f"Predictions refreshed for GW{current_gw + 1} — {len(records_out)} players updated.",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Retrain failed: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
