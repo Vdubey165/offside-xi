@@ -303,6 +303,57 @@ def health():
     }
 
 
+@app.get("/api/predictions/status")
+def predictions_status():
+    """
+    Shows exactly where predictions are being served from and when they were last updated.
+    Use this to verify the retrain pipeline is working correctly.
+    """
+    from datetime import datetime as dt
+
+    status = {
+        "source":       None,
+        "updated_at":   None,
+        "gameweek":     None,
+        "next_gameweek": None,
+        "player_count": None,
+        "model_file":   MODEL_PATH.exists(),
+        "csv_file":     PREDS_PATH.exists(),
+        "mongo_cache":  False,
+    }
+
+    # Check MongoDB
+    try:
+        from pymongo import MongoClient
+        MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
+        client = MongoClient(
+            MONGO_URI, serverSelectionTimeoutMS=5000,
+            tls=True, tlsAllowInvalidCertificates=True, tlsAllowInvalidHostnames=True,
+        )
+        doc = client["offside_xi"].predictions_cache.find_one({"_id": "latest"})
+        if doc and "players" in doc:
+            status["mongo_cache"]   = True
+            status["updated_at"]    = doc.get("updated_at")
+            status["gameweek"]      = doc.get("gameweek")
+            status["next_gameweek"] = doc.get("next_gameweek")
+            status["player_count"]  = doc.get("player_count", len(doc["players"]))
+    except Exception:
+        pass
+
+    # Determine active source
+    if status["mongo_cache"]:
+        status["source"] = "mongodb"
+    elif status["csv_file"]:
+        status["source"] = "csv_on_disk"
+    else:
+        status["source"] = "live_fpl_api_fallback"
+
+    # Check if in-memory cache is loaded
+    status["in_memory_cache_loaded"] = _predictions is not None
+
+    return status
+
+
 @app.get("/api/debug")
 def debug():
     """
