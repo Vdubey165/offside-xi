@@ -27,24 +27,10 @@ except ImportError:
     PULP_OK = False
 
 # ── Path resolution ────────────────────────────────────────────────────────────
-# main.py lives at:  <root>/fpl-app/backend/main.py
-# Data lives at:     <root>/Data/data/  and  <root>/Data/models/
-# We walk up until we find a folder that contains both "fpl-app" and "Data",
-# or fall back to env-var overrides.
-
 def _find_root() -> Path:
-    """
-    Data/ always sits alongside fpl-app/, so it is exactly 2 levels
-    up from this file:
-      <root>/fpl-app/backend/main.py  →  parent = backend/
-                                        →  parent = fpl-app/
-                                        →  parent = <root>   ✓
-    Override with env-var FPL_ROOT if needed.
-    """
     env_root = os.environ.get("FPL_ROOT")
     if env_root:
         return Path(env_root)
-    # main.py → backend → fpl-app → <root>
     return Path(__file__).resolve().parent.parent.parent
 
 ROOT_DIR   = _find_root()
@@ -100,10 +86,6 @@ def get_model():
 
 
 def _load_predictions_from_mongo() -> pd.DataFrame | None:
-    """
-    Try to load the most recently saved predictions from MongoDB.
-    Returns a DataFrame if found, None otherwise.
-    """
     try:
         from pymongo import MongoClient
         MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
@@ -119,7 +101,6 @@ def _load_predictions_from_mongo() -> pd.DataFrame | None:
         if not doc or "players" not in doc:
             return None
         df = pd.DataFrame(doc["players"])
-        # Patch live status from FPL API (always fresh, very fast)
         try:
             r          = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=8).json()
             teams      = pd.DataFrame(r["teams"])
@@ -129,7 +110,6 @@ def _load_predictions_from_mongo() -> pd.DataFrame | None:
             price_map  = players.set_index("id")["now_cost"].to_dict()
             df["team_name"] = df["team"].map(team_map)
             df["status"]    = df["player_id"].map(status_map).fillna("a")
-            # Update prices to live values (handles price changes since last retrain)
             df["now_cost"]  = df["player_id"].map(price_map).fillna(df["now_cost"])
             df["price"]     = df["now_cost"] / 10
         except Exception:
@@ -142,11 +122,6 @@ def _load_predictions_from_mongo() -> pd.DataFrame | None:
 
 
 def _fetch_live_fpl_data() -> pd.DataFrame:
-    """
-    Last-resort fallback: build a basic player DataFrame directly from the FPL API.
-    Used only when neither MongoDB nor the CSV have predictions.
-    Points are estimated from points_per_game (season average — no real form).
-    """
     r        = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=15).json()
     teams    = pd.DataFrame(r["teams"])
     elements = pd.DataFrame(r["elements"])
@@ -180,13 +155,11 @@ def get_predictions() -> pd.DataFrame:
     if _predictions is not None:
         return _predictions
 
-    # ── Priority 1: MongoDB predictions_cache (survives deploys, always current) ─
     df = _load_predictions_from_mongo()
     if df is not None:
         _predictions = df
         return _predictions
 
-    # ── Priority 2: CSV on disk (notebook-generated, static) ─────────────────────
     if PREDS_PATH.exists():
         df = pd.read_csv(PREDS_PATH)
         try:
@@ -213,7 +186,6 @@ def get_predictions() -> pd.DataFrame:
         _predictions = df
         return _predictions
 
-    # ── Priority 3: Live FPL API fallback (no model, season-avg points only) ─────
     try:
         df = _fetch_live_fpl_data()
     except Exception as e:
@@ -305,7 +277,6 @@ def health():
 
 @app.get("/api/fpl/entry/{team_id}")
 def fpl_entry(team_id: int):
-    """Returns overall rank and bank for a given FPL team ID."""
     try:
         r = requests.get(f"https://fantasy.premierleague.com/api/entry/{team_id}/", timeout=10).json()
         if "detail" in r:
@@ -324,10 +295,6 @@ def fpl_entry(team_id: int):
 
 @app.get("/api/predictions/status")
 def predictions_status():
-    """
-    Shows exactly where predictions are being served from and when they were last updated.
-    Use this to verify the retrain pipeline is working correctly.
-    """
     from datetime import datetime as dt
 
     status = {
@@ -341,7 +308,6 @@ def predictions_status():
         "mongo_cache":  False,
     }
 
-    # Check MongoDB
     try:
         from pymongo import MongoClient
         MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
@@ -359,7 +325,6 @@ def predictions_status():
     except Exception:
         pass
 
-    # Determine active source
     if status["mongo_cache"]:
         status["source"] = "mongodb"
     elif status["csv_file"]:
@@ -367,7 +332,6 @@ def predictions_status():
     else:
         status["source"] = "live_fpl_api_fallback"
 
-    # Check if in-memory cache is loaded
     status["in_memory_cache_loaded"] = _predictions is not None
 
     return status
@@ -375,10 +339,6 @@ def predictions_status():
 
 @app.get("/api/debug")
 def debug():
-    """
-    Diagnostic endpoint — open http://localhost:8000/api/debug in your browser
-    to see exactly what paths are being checked and what's missing.
-    """
     return {
         "root_dir":         str(ROOT_DIR),
         "data_dir":         str(DATA_DIR),
@@ -405,7 +365,6 @@ def debug():
 
 @app.get("/api/current-gw")
 def current_gw():
-    """Returns the current GW, deadline_time and gw_finished from the FPL API."""
     try:
         r      = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
         events = pd.DataFrame(r["events"])
@@ -432,10 +391,6 @@ def current_gw():
 
 @app.get("/api/gw-points/{gw}")
 def get_gw_points(gw: int, player_ids: str = ""):
-    """
-    Returns actual FPL points for given player_ids in a specific GW.
-    player_ids: comma-separated list of FPL element IDs
-    """
     try:
         if not player_ids:
             return {}
@@ -443,7 +398,6 @@ def get_gw_points(gw: int, player_ids: str = ""):
         r   = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
         elements = pd.DataFrame(r["elements"])
 
-        # Get live points from event endpoint
         live = requests.get(f"https://fantasy.premierleague.com/api/event/{gw}/live/", timeout=10).json()
         live_df = pd.DataFrame([
             {"id": e["id"], "points": e["stats"]["total_points"]}
@@ -474,7 +428,6 @@ def get_players(
         df = df[df["status"] == "a"]
     df = df.sort_values("predicted_pts", ascending=False).head(limit)
 
-    # Always return avg_pts_last3 and avg_xgi_last3 (may be approximated)
     cols = ["player_id", "web_name", "team_name", "position",
             "price", "predicted_pts", "status", "avg_pts_last3", "avg_xgi_last3"]
     cols = [c for c in cols if c in df.columns]
@@ -484,7 +437,6 @@ def get_players(
 @app.get("/api/model/insights")
 def get_model_insights():
     if not MODEL_PATH.exists():
-        # Return placeholder insights so the Insights page isn't broken
         placeholder_imp = {f: max(4000 - i*300, 200) for i, f in enumerate(FEATURES)}
         return {
             "model":               "LightGBM (Optuna-tuned)",
@@ -699,7 +651,6 @@ def optimize_transfers(req: TransferRequest):
 
 @app.get("/api/fpl/news")
 def fpl_news(limit: int = 10):
-    """Build a news feed from FPL player injury/news strings."""
     BASE_URL = "https://fantasy.premierleague.com/api"
     try:
         r        = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
@@ -740,7 +691,6 @@ def fpl_news(limit: int = 10):
 
 @app.get("/api/fpl/fixtures")
 def fpl_fixtures(event: Optional[int] = None):
-    """Return fixtures for the current (or given) gameweek."""
     BASE_URL = "https://fantasy.premierleague.com/api"
     try:
         boot  = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
@@ -794,11 +744,6 @@ def fpl_fixtures(event: Optional[int] = None):
 
 @app.get("/api/pl/table")
 def pl_table():
-    """
-    Build the real Premier League table by computing W/D/L/GD/Pts
-    from every finished FPL fixture. This is the only reliable way —
-    the FPL teams endpoint win/draw/loss fields are not real league stats.
-    """
     BASE_URL = "https://fantasy.premierleague.com/api"
     try:
         boot     = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
@@ -807,7 +752,6 @@ def pl_table():
     except Exception as e:
         raise HTTPException(500, f"Could not fetch FPL data: {e}")
 
-    # id → display name mapping
     name_map = {
         "Arsenal":       "Arsenal",       "Aston Villa":  "Aston Villa",
         "Bournemouth":   "Bournemouth",   "Brentford":    "Brentford",
@@ -825,7 +769,6 @@ def pl_table():
         for _, row in teams_df.iterrows()
     }
 
-    # Initialise table
     table = {
         tid: {"name": id_to_name.get(tid, str(tid)),
               "played": 0, "win": 0, "draw": 0, "loss": 0,
@@ -833,7 +776,6 @@ def pl_table():
         for tid in id_to_name
     }
 
-    # Process every finished fixture
     for fx in fixtures:
         if not fx.get("finished"):
             continue
@@ -862,7 +804,6 @@ def pl_table():
             else:
                 t["loss"]   += 1
 
-    # Sort: pts desc, gd desc, gf desc
     ranked = sorted(
         table.values(),
         key=lambda x: (-x["points"], -x["gd"], -x["gf"])
@@ -875,10 +816,6 @@ def pl_table():
 
 @app.get("/api/players/{player_id}")
 def get_player_detail(player_id: int):
-    """
-    Full player detail: season stats, last 5 GW history, next 5 fixtures.
-    Combines bootstrap-static + element-summary from the FPL API.
-    """
     BASE_URL = "https://fantasy.premierleague.com/api"
     try:
         boot = requests.get(f"{BASE_URL}/bootstrap-static/", timeout=10).json()
@@ -890,10 +827,8 @@ def get_player_detail(player_id: int):
     team_map  = teams.set_index("id")["name"].to_dict()
     short_map = teams.set_index("id")["short_name"].to_dict()
 
-    # Try direct FPL ID first
     row = elements[elements["id"] == player_id]
 
-    # Fallback: match via predictions CSV web_name
     if row.empty:
         preds    = get_predictions()
         pred_row = preds[preds["player_id"] == player_id]
@@ -906,7 +841,6 @@ def get_player_detail(player_id: int):
 
     p = row.iloc[0]
 
-    # Fetch element summary (history + fixtures)
     fpl_id = int(p["id"])
     try:
         summary  = requests.get(f"{BASE_URL}/element-summary/{fpl_id}/", timeout=10).json()
@@ -916,7 +850,6 @@ def get_player_detail(player_id: int):
         history  = []
         fixtures = []
 
-    # Build last 5 GW history
     gw_history = [
         {
             "round":        h["round"],
@@ -930,7 +863,6 @@ def get_player_detail(player_id: int):
         for h in history[-5:]
     ]
 
-    # Build next 5 fixtures
     next_fixtures = []
     for fx in fixtures[:5]:
         opp_id   = fx.get("team_a") if fx.get("is_home") else fx.get("team_h")
@@ -965,17 +897,18 @@ def get_player_detail(player_id: int):
         "history":         gw_history,
         "fixtures":        next_fixtures,
     }
+
 @app.get("/api/debug/player-match/{player_id}")
 def debug_player_match(player_id: int):
     preds    = get_predictions()
     pred_row = preds[preds["player_id"] == player_id]
-    
+
     boot     = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
     elements = pd.DataFrame(boot["elements"])
-    
+
     web_name = pred_row.iloc[0]["web_name"] if not pred_row.empty else None
     fpl_row  = elements[elements["web_name"] == web_name] if web_name else pd.DataFrame()
-    
+
     return {
         "player_id_searched": player_id,
         "found_in_csv":       not pred_row.empty,
@@ -993,23 +926,14 @@ def debug_player_match(player_id: int):
 
 @app.post("/api/squad/snapshot/{gw}")
 def snapshot_squad(gw: int):
-    """
-    Called automatically by the frontend when the page loads for a given GW.
-    If no snapshot exists for this GW yet, runs the optimizer and saves the
-    result to MongoDB. Subsequent calls return the same locked squad.
-    This ensures scoring always uses the squad that was picked BEFORE
-    the retrain runs, not whatever the model currently recommends.
-    """
     from datetime import datetime as dt
     db = get_db()
 
-    # Return existing snapshot if already locked for this GW
     existing = db.squad_snapshots.find_one({"gw": gw})
     if existing:
         existing.pop("_id", None)
         return existing
 
-    # No snapshot yet — generate and lock it now
     df         = get_predictions().copy()
     df         = df[df["status"] == "a"].reset_index(drop=True)
     budget_raw = int(100 * 10)
@@ -1037,7 +961,6 @@ def snapshot_squad(gw: int):
         "bench":            bench[cols].fillna(0).to_dict(orient="records"),
     }
 
-    # Convert numpy types
     def clean(obj):
         if isinstance(obj, list):
             return [clean(i) for i in obj]
@@ -1054,7 +977,6 @@ def snapshot_squad(gw: int):
 
 @app.get("/api/squad/snapshot/{gw}")
 def get_squad_snapshot(gw: int):
-    """Returns the locked AI squad snapshot for a given GW, or 404 if none exists."""
     db  = get_db()
     doc = db.squad_snapshots.find_one({"gw": gw})
     if not doc:
@@ -1064,21 +986,11 @@ def get_squad_snapshot(gw: int):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# RETRAIN ENDPOINT — rebuilds features + predictions, saves to MongoDB
+# RETRAIN ENDPOINT
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/api/retrain")
 def retrain_predictions(secret: str = ""):
-    """
-    Re-fetches live FPL event data, rebuilds rolling features for every player,
-    runs LightGBM inference, and saves results to MongoDB predictions_cache.
-
-    The in-memory _predictions cache is hot-swapped so every subsequent request
-    immediately uses the fresh data — no redeploy or restart needed.
-
-    Protection: ?secret=<RETRAIN_SECRET env var>
-    Trigger manually or via GitHub Actions cron after each GW.
-    """
     global _predictions
 
     RETRAIN_SECRET = os.environ.get("RETRAIN_SECRET", "offside_retrain_2025")
@@ -1094,7 +1006,6 @@ def retrain_predictions(secret: str = ""):
 
         FPL_BASE = "https://fantasy.premierleague.com/api"
 
-        # ── 1. Bootstrap data ─────────────────────────────────────────────────
         boot     = requests.get(f"{FPL_BASE}/bootstrap-static/", timeout=15).json()
         elements = pd.DataFrame(boot["elements"])
         teams    = pd.DataFrame(boot["teams"])
@@ -1108,7 +1019,6 @@ def retrain_predictions(secret: str = ""):
             events[events["finished"] == True]["id"].max()
         )
 
-        # ── 2. Fetch last 5 completed GWs of live event data ──────────────────
         all_rows = []
         gw_start = max(1, current_gw - 4)
         for gw in range(gw_start, current_gw + 1):
@@ -1126,14 +1036,13 @@ def retrain_predictions(secret: str = ""):
                         "expected_goal_involvements":   float(s.get("expected_goal_involvements", 0) or 0),
                     })
             except Exception:
-                continue  # skip a GW if it fails — degrade gracefully
+                continue
 
         if not all_rows:
             raise HTTPException(500, "Could not fetch any GW live data from FPL API.")
 
         hist = pd.DataFrame(all_rows)
 
-        # ── 3. Build rolling features per player ──────────────────────────────
         records = []
         for pid, grp in hist.groupby("player_id"):
             grp  = grp.sort_values("gw")
@@ -1160,7 +1069,6 @@ def retrain_predictions(secret: str = ""):
 
         feat_df = pd.DataFrame(records)
 
-        # ── 4. Merge with current player metadata ─────────────────────────────
         el_df = elements[["id", "web_name", "element_type", "now_cost", "team", "status"]].copy()
         el_df.rename(columns={"id": "player_id"}, inplace=True)
         el_df["position"] = el_df["element_type"].map(pos_map)
@@ -1170,7 +1078,6 @@ def retrain_predictions(secret: str = ""):
 
         df = el_df.merge(feat_df, on="player_id", how="left")
 
-        # ── 5. Next fixture difficulty + home/away ─────────────────────────────
         try:
             next_gw       = current_gw + 1
             fixtures_r    = requests.get(f"{FPL_BASE}/fixtures/?event={next_gw}", timeout=10).json()
@@ -1187,14 +1094,12 @@ def retrain_predictions(secret: str = ""):
             df["avg_fixture_difficulty"] = 3.0
             df["is_home"]                = 0
 
-        # ── 6. Fill any missing feature values + run inference ─────────────────
         for col in FEATURES:
             df[col] = pd.to_numeric(df.get(col, 0), errors="coerce").fillna(0)
 
         X                  = df[FEATURES].fillna(0)
         df["predicted_pts"] = model.predict(X).round(2)
 
-        # ── 7. Save to MongoDB (persistent, survives redeploys) ────────────────
         from pymongo import MongoClient
         MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
         mongo     = MongoClient(
@@ -1206,7 +1111,6 @@ def retrain_predictions(secret: str = ""):
         )
         mdb = mongo["offside_xi"]
 
-        # Convert to JSON-safe records
         save_cols = [
             "player_id", "web_name", "team", "team_name", "element_type",
             "position", "now_cost", "price", "status",
@@ -1216,7 +1120,6 @@ def retrain_predictions(secret: str = ""):
         ]
         save_cols = [c for c in save_cols if c in df.columns]
         records_out = df[save_cols].fillna(0).to_dict(orient="records")
-        # Convert numpy types to native Python for MongoDB
         for rec in records_out:
             for k, v in rec.items():
                 if hasattr(v, "item"):
@@ -1235,14 +1138,12 @@ def retrain_predictions(secret: str = ""):
             upsert=True,
         )
 
-        # ── 8. Also write to disk (belt-and-suspenders for local dev) ──────────
         try:
             DATA_DIR.mkdir(parents=True, exist_ok=True)
             df[save_cols].to_csv(PREDS_PATH, index=False)
         except Exception:
-            pass  # disk write failure is non-fatal — MongoDB is the source of truth
+            pass
 
-        # ── 9. Hot-swap in-memory cache ────────────────────────────────────────
         _predictions = df
 
         return {
@@ -1271,13 +1172,11 @@ from pymongo.errors import DuplicateKeyError
 from passlib.context import CryptContext
 from jose import jwt, JWTError
 
-# ── Config ────────────────────────────────────────────────────────────────────
 MONGO_URI   = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
 JWT_SECRET  = os.environ.get("JWT_SECRET", "offside_xi_secret_change_in_prod")
 JWT_ALG     = "HS256"
 JWT_EXPIRE  = 30  # days
 
-# ── MongoDB client (lazy init) ────────────────────────────────────────────────
 _mongo_client = None
 _db           = None
 
@@ -1301,7 +1200,6 @@ def get_db():
         _db.challenge_history.create_index([("user_id", 1), ("gw", 1)])
     return _db
 
-# ── Password hashing ──────────────────────────────────────────────────────────
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(pw: str) -> str:
@@ -1310,7 +1208,6 @@ def hash_password(pw: str) -> str:
 def verify_password(pw: str, hashed: str) -> bool:
     return pwd_ctx.verify(pw, hashed)
 
-# ── JWT helpers ───────────────────────────────────────────────────────────────
 def create_token(user_id: str, email: str) -> str:
     payload = {
         "sub":   user_id,
@@ -1330,7 +1227,6 @@ def get_current_user(authorization: str = Header(None)) -> dict:
         raise HTTPException(401, "Not authenticated")
     return decode_token(authorization.split(" ")[1])
 
-# ── Pydantic models ───────────────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
     email:    str
     password: str
@@ -1355,7 +1251,6 @@ class CommunityJoinRequest(BaseModel):
     city:  str
     role:  str
 
-# ── Auth routes ───────────────────────────────────────────────────────────────
 @app.post("/api/auth/register")
 def register(req: RegisterRequest):
     db = get_db()
@@ -1444,7 +1339,6 @@ def save_challenge_result(req: ChallengeResultRequest, current_user: dict = Depe
 
 @app.post("/api/user/challenge-state")
 def save_challenge_state(req: dict, current_user: dict = Depends(get_current_user)):
-    """Save user's challenge team state (for cross-browser sync)."""
     db = get_db()
     db.challenge_state.update_one(
         {"user_id": current_user["sub"]},
@@ -1462,7 +1356,6 @@ def save_challenge_state(req: dict, current_user: dict = Depends(get_current_use
 
 @app.get("/api/user/challenge-state")
 def load_challenge_state(current_user: dict = Depends(get_current_user)):
-    """Load user's challenge team state."""
     db  = get_db()
     doc = db.challenge_state.find_one({"user_id": current_user["sub"]})
     if not doc:
@@ -1487,3 +1380,177 @@ def community_join(req: CommunityJoinRequest):
         "joined_at": datetime.utcnow(),
     })
     return {"ok": True, "message": "Welcome to the community!"}
+
+@app.get("/api/community/count")
+def community_count():
+    db = get_db()
+    count = db.community.count_documents({})
+    return {"count": count}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ISL DATA ENDPOINTS — powered by API-Football (free tier)
+# ISL League ID on API-Football: 323 (Indian Super League)
+# Season: 2024 (for 2024-25 season)
+# Cache results for 1 hour in memory to conserve free-tier quota (100 calls/day)
+# ══════════════════════════════════════════════════════════════════════════════
+
+import time as _time
+
+# In-memory cache: { key: { "data": ..., "ts": epoch_seconds } }
+_isl_cache: dict = {}
+ISL_CACHE_TTL   = 3600   # 1 hour
+ISL_LEAGUE_ID   = 323
+ISL_SEASON      = 2024
+
+def _api_football(endpoint: str, params: dict) -> dict:
+    """
+    Call the API-Football v3 endpoint with the key from env var API_FOOTBALL_KEY.
+    Falls back gracefully if the key is missing.
+    """
+    api_key = os.environ.get("API_FOOTBALL_KEY", "")
+    if not api_key:
+        raise HTTPException(503, "API_FOOTBALL_KEY not set on server. ISL live data unavailable.")
+
+    url = f"https://v3.football.api-sports.io/{endpoint}"
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key":  api_key,
+    }
+    try:
+        resp = requests.get(url, headers=headers, params=params, timeout=12)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as e:
+        raise HTTPException(502, f"API-Football request failed: {e}")
+
+
+def _cached(key: str, fetch_fn):
+    """Return cached value if fresh, else call fetch_fn(), cache, and return."""
+    now = _time.time()
+    entry = _isl_cache.get(key)
+    if entry and (now - entry["ts"]) < ISL_CACHE_TTL:
+        return entry["data"]
+    data = fetch_fn()
+    _isl_cache[key] = {"data": data, "ts": now}
+    return data
+
+
+@app.get("/api/isl/standings")
+def isl_standings():
+    """
+    Returns the current ISL standings table.
+    Data shape: list of { pos, team, played, win, draw, loss, gf, ga, gd, points, form, logo }
+    """
+    def fetch():
+        raw = _api_football("standings", {
+            "league": ISL_LEAGUE_ID,
+            "season": ISL_SEASON,
+        })
+        try:
+            groups = raw["response"][0]["league"]["standings"]
+            # ISL has a single group (index 0)
+            rows = groups[0]
+            result = []
+            for r in rows:
+                team_info = r.get("team", {})
+                all_stats = r.get("all", {})
+                goals     = all_stats.get("goals", {})
+                result.append({
+                    "pos":    r.get("rank"),
+                    "team":   team_info.get("name", ""),
+                    "logo":   team_info.get("logo", ""),
+                    "played": all_stats.get("played", 0),
+                    "win":    all_stats.get("win", 0),
+                    "draw":   all_stats.get("draw", 0),
+                    "loss":   all_stats.get("lose", 0),
+                    "gf":     goals.get("for", 0),
+                    "ga":     goals.get("against", 0),
+                    "gd":     r.get("goalsDiff", 0),
+                    "points": r.get("points", 0),
+                    "form":   r.get("form", ""),
+                })
+            return result
+        except (KeyError, IndexError, TypeError) as e:
+            raise HTTPException(502, f"Unexpected API-Football response shape: {e}")
+
+    return _cached("isl_standings", fetch)
+
+
+@app.get("/api/isl/top-scorers")
+def isl_top_scorers():
+    """
+    Returns the top 10 ISL scorers for the current season.
+    Data shape: list of { rank, player, team, logo, goals, assists, nationality, photo }
+    """
+    def fetch():
+        raw = _api_football("players/topscorers", {
+            "league": ISL_LEAGUE_ID,
+            "season": ISL_SEASON,
+        })
+        try:
+            players = raw.get("response", [])
+            result = []
+            for i, entry in enumerate(players[:10]):
+                p     = entry.get("player", {})
+                stats = entry.get("statistics", [{}])[0]
+                team  = stats.get("team", {})
+                goals_info = stats.get("goals", {})
+                result.append({
+                    "rank":        i + 1,
+                    "player":      p.get("name", ""),
+                    "photo":       p.get("photo", ""),
+                    "nationality": p.get("nationality", ""),
+                    "team":        team.get("name", ""),
+                    "logo":        team.get("logo", ""),
+                    "goals":       goals_info.get("total") or 0,
+                    "assists":     goals_info.get("assists") or 0,
+                })
+            return result
+        except (KeyError, IndexError, TypeError) as e:
+            raise HTTPException(502, f"Unexpected API-Football response shape: {e}")
+
+    return _cached("isl_top_scorers", fetch)
+
+
+@app.get("/api/isl/fixtures")
+def isl_fixtures(next: int = 5):
+    """
+    Returns the next N upcoming ISL fixtures (or most recent finished ones).
+    Data shape: list of { date, home, home_logo, away, away_logo, score, status, venue }
+    """
+    def fetch():
+        raw = _api_football("fixtures", {
+            "league": ISL_LEAGUE_ID,
+            "season": ISL_SEASON,
+            "next":   next,
+        })
+        try:
+            fixtures = raw.get("response", [])
+            result = []
+            for fx in fixtures:
+                fixture_info = fx.get("fixture", {})
+                teams        = fx.get("teams", {})
+                goals        = fx.get("goals", {})
+                score        = fx.get("score", {})
+                venue        = fixture_info.get("venue", {})
+                status       = fixture_info.get("status", {})
+                result.append({
+                    "id":        fixture_info.get("id"),
+                    "date":      fixture_info.get("date", ""),
+                    "home":      teams.get("home", {}).get("name", ""),
+                    "home_logo": teams.get("home", {}).get("logo", ""),
+                    "away":      teams.get("away", {}).get("name", ""),
+                    "away_logo": teams.get("away", {}).get("logo", ""),
+                    "home_score": goals.get("home"),
+                    "away_score": goals.get("away"),
+                    "status":    status.get("short", "NS"),
+                    "status_long": status.get("long", "Not Started"),
+                    "venue":     venue.get("name", ""),
+                    "city":      venue.get("city", ""),
+                })
+            return result
+        except (KeyError, IndexError, TypeError) as e:
+            raise HTTPException(502, f"Unexpected API-Football response shape: {e}")
+
+    return _cached(f"isl_fixtures_{next}", fetch)
