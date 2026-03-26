@@ -518,6 +518,119 @@ function IslFixtures() {
   );
 }
 
+// ─── SURVEY INSIGHTS ─────────────────────────────────────────────────────────
+// SurveyBar — label + % value displayed, bar width = pct
+function SurveyBar({ label, pct, color = "var(--cyan)" }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+        <span style={{ fontSize: 11.5, color: "var(--text2)", fontFamily: "var(--font)", flex: 1, paddingRight: 8 }}>{label}</span>
+        <span style={{ fontSize: 10, fontWeight: 900, color, fontFamily: "var(--mono)", flexShrink: 0 }}>{pct}%</span>
+      </div>
+      <div style={{ height: 5, background: "rgba(255,255,255,0.06)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 3, transition: "width 0.6s ease" }} />
+      </div>
+    </div>
+  );
+}
+
+function SurveyInsights() {
+  // Data from 35-response FSL Survey (March 2026)
+  // Multi-select % = respondents who chose that option / total respondents
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div className="card-title" style={{ marginBottom: 0 }}>FSL Survey · What India Wants</div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+        {/* Must-Have Features — multi-select, % of 35 */}
+        <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "14px 16px", border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--mono)", marginBottom: 12 }}>
+            ✦ Must-Have FSL Features (Users could select up to 2 options) 
+          </div>
+          <SurveyBar label="AI player predictions / tips" pct={60} color="var(--cyan)" />
+          <SurveyBar label="Live scores & stats" pct={57} color="var(--cyan)" />
+          <SurveyBar label="Real-world rewards / merch" pct={49} color="#00ff87" />
+          <SurveyBar label="Private leagues w/ friends" pct={46} color="#00ff87" />
+          <SurveyBar label="Injury / form updates" pct={34} color="#ebff00" />
+        </div>
+
+        {/* What stops them */}
+        <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "14px 16px", border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--mono)", marginBottom: 12 }}>
+            ✦ What Stops Fans From Watching
+          </div>
+          <SurveyBar label="Matches not interesting" pct={43} color="#ff4d4d" />
+          <SurveyBar label="No community" pct={20} color="#ff9933" />
+          <SurveyBar label="Lack of awareness" pct={20} color="#ebff00" />
+          <SurveyBar label="No engagement tools" pct={17} color="#ebff00" />
+          <div style={{ marginTop: 14, padding: "10px 12px", background: "rgba(0,255,135,0.05)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: "var(--radius-sm)" }}>
+            <div style={{ fontSize: 10, color: "#00ff87", fontFamily: "var(--mono)", fontWeight: 900, marginBottom: 4 }}>THE OPPORTUNITY</div>
+            <div style={{ fontSize: 11, color: "var(--text2)", fontFamily: "var(--font)", lineHeight: 1.6 }}>
+              37% cite no community or no engagement tools — exactly what FSL fixes.
+            </div>
+          </div>
+        </div>
+
+        {/* AI Trust */}
+        <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "14px 16px", border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--mono)", marginBottom: 12 }}>
+            ✦ Would You Pick an AI-Recommended Unknown?
+          </div>
+          <SurveyBar label="Maybe — if stats allow" pct={40} color="#ebff00" />
+          <SurveyBar label="Yes — spotlight new talent" pct={31} color="#00ff87" />
+          <SurveyBar label="Yes — trust the data" pct={23} color="#00ff87" />
+          <SurveyBar label="No — big stars only" pct={6} color="#ff4d4d" />
+          <div style={{ marginTop: 10, fontSize: 10.5, color: "rgba(5,240,255,0.6)", fontFamily: "var(--mono)" }}>
+            <strong style={{ color: "#05f0ff" }}>94%</strong> open to AI picks — a massive validation for the model
+          </div>
+        </div>
+
+        {/* FSL Hype Impact — bar chart with % */}
+        <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "14px 16px", border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--mono)", marginBottom: 12 }}>
+            ✦ FSL Impact on ISL Viewership (1–5 scale)
+          </div>
+          {/* scores: 2=6%, 3=51%, 4=34%, 5=9% */}
+          <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 72, marginBottom: 10 }}>
+            {[
+              { score: 2, pct: 6,  color: "rgba(255,255,255,0.15)" },
+              { score: 3, pct: 51, color: "#05f0ff" },
+              { score: 4, pct: 34, color: "#00ff87" },
+              { score: 5, pct: 9,  color: "#ebff00" },
+            ].map(({ score, pct, color }) => (
+              <div key={score} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <span style={{ fontSize: 9, fontWeight: 900, color, fontFamily: "var(--mono)" }}>{pct}%</span>
+                <div style={{ width: "100%", background: color, borderRadius: "3px 3px 0 0", height: `${(pct / 51) * 52}px`, minHeight: 3 }} />
+                <span style={{ fontSize: 9.5, color: "var(--text3)", fontFamily: "var(--mono)" }}>{score}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10.5, color: "var(--text2)", fontFamily: "var(--font)", lineHeight: 1.6 }}>
+            <strong style={{ color: "#ebff00" }}>94%</strong> rated 3+ out of 5. Avg score: <strong style={{ color: "#05f0ff" }}>3.5</strong> — fans believe FSL <em>will</em> grow the sport.
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom headline stats */}
+      <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(5,240,255,0.04)", border: "1px solid rgba(5,240,255,0.1)", borderRadius: "var(--radius)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        {[
+          { label: "Haven't played Fantasy yet", value: "86%", color: "#ebff00" },
+          { label: "Want to join the community", value: "91%", color: "#00ff87" },
+          { label: "Open to AI-driven picks",    value: "94%", color: "#05f0ff" },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 160px" }}>
+            <span style={{ fontSize: 20, fontWeight: 900, color, fontFamily: "var(--mono)", lineHeight: 1 }}>{value}</span>
+            <span style={{ fontSize: 10.5, color: "var(--text3)", fontFamily: "var(--font)", lineHeight: 1.4 }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── JOIN FORM ────────────────────────────────────────────────────────────────
 function JoinForm() {
   const [step,        setStep]        = useState(0);
@@ -670,6 +783,9 @@ export default function IndianFootballCommunity() {
 
       {/* ── ISL UPCOMING FIXTURES (LIVE) ── */}
       <IslFixtures />
+
+      {/* ── SURVEY INSIGHTS ── */}
+      <SurveyInsights />
 
       {/* ── PILLARS ── */}
       <div id="india-vision" className="card" style={{ marginBottom:20 }}>

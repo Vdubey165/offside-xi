@@ -2,34 +2,42 @@ import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import IndiaFootballQuiz from "./IndiaFootballQuiz";
 
-// ─── STATIC DATA ──────────────────────────────────────────────────────────────
+// ─── STATIC / FALLBACK DATA ───────────────────────────────────────────────────
 const STATS = [
   { val: "1.4B", label: "People. One Football Nation." },
   { val: "11",   label: "ISL Clubs. Growing Every Year." },
   { val: "94",   label: "Chhetri Goals. And Counting."  },
 ];
 
-// ISL 2024-25 top scorers — static, accurate as of March 2026
-const ISL_SCORERS = [
-  { name: "Dimitri Petratos",  club: "NorthEast Utd", goals: 14, indian: false },
-  { name: "Rahim Ali",         club: "Chennaiyin FC",  goals: 11, indian: true  },
-  { name: "Lallianzuala Chhangte", club: "Mumbai City", goals: 10, indian: true },
-  { name: "Jorge Pereyra Díaz",club: "FC Goa",         goals: 10, indian: false },
-  { name: "Manvir Singh",      club: "ATK Mohun Bagan",goals: 9,  indian: true  },
+// Fallback top scorers (shown while live data loads or on API failure)
+const FALLBACK_SCORERS = [
+  { rank: 1, player: "Dimitri Petratos",      nationality: "Australian", team: "NorthEast United FC", goals: 14, assists: 3 },
+  { rank: 2, player: "Rahim Ali",              nationality: "Indian",     team: "Chennaiyin FC",        goals: 11, assists: 2 },
+  { rank: 3, player: "Lallianzuala Chhangte",  nationality: "Indian",     team: "Mumbai City FC",       goals: 10, assists: 4 },
+  { rank: 4, player: "Jorge Pereyra Díaz",     nationality: "Argentine",  team: "FC Goa",               goals: 10, assists: 1 },
+  { rank: 5, player: "Manvir Singh",           nationality: "Indian",     team: "ATK Mohun Bagan",       goals: 9,  assists: 3 },
 ];
 
-// Indian players in professional football abroad
-const INDIAN_ABROAD = [
-  { name: "Lallianzuala Chhangte", league: "ISL → Watching Europe", note: "Most technically gifted winger in India right now" },
-  { name: "Sunil Chhetri",         league: "Bengaluru FC · ISL",    note: "94+ international goals. Active at 39." },
-  { name: "Gurpreet Singh Sandhu", league: "Bengaluru FC · ISL",    note: "First Indian to play in UEFA Europa League" },
+// Fallback standings (used if API is unavailable)
+const FALLBACK_STANDINGS = [
+  { pos: 1,  team: "Bengaluru FC",       played: 22, win: 14, draw: 4, loss: 4, gf: 41, ga: 22, gd: 19, points: 46 },
+  { pos: 2,  team: "ATK Mohun Bagan",    played: 22, win: 13, draw: 5, loss: 4, gf: 38, ga: 24, gd: 14, points: 44 },
+  { pos: 3,  team: "Mumbai City FC",     played: 22, win: 12, draw: 4, loss: 6, gf: 35, ga: 26, gd: 9,  points: 40 },
+  { pos: 4,  team: "FC Goa",             played: 22, win: 11, draw: 5, loss: 6, gf: 33, ga: 27, gd: 6,  points: 38 },
+  { pos: 5,  team: "NorthEast United FC",played: 22, win: 10, draw: 6, loss: 6, gf: 30, ga: 28, gd: 2,  points: 36 },
+  { pos: 6,  team: "Hyderabad FC",       played: 22, win:  9, draw: 5, loss: 8, gf: 29, ga: 30, gd:-1,  points: 32 },
+  { pos: 7,  team: "Kerala Blasters",    played: 22, win:  8, draw: 6, loss: 8, gf: 27, ga: 28, gd:-1,  points: 30 },
+  { pos: 8,  team: "Jamshedpur FC",      played: 22, win:  7, draw: 7, loss: 8, gf: 26, ga: 29, gd:-3,  points: 28 },
+  { pos: 9,  team: "Chennaiyin FC",      played: 22, win:  6, draw: 6, loss:10, gf: 25, ga: 32, gd:-7,  points: 24 },
+  { pos: 10, team: "Odisha FC",          played: 22, win:  5, draw: 5, loss:12, gf: 22, ga: 36, gd:-14, points: 20 },
+  { pos: 11, team: "Punjab FC",          played: 22, win:  3, draw: 6, loss:13, gf: 18, ga: 38, gd:-20, points: 15 },
 ];
 
 const PILLARS = [
-  { icon: "grassroots", title: "Grassroots First",        desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground." },
-  { icon: "data",       title: "Data Meets Passion",      desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand." },
-  { icon: "location",   title: "Every City. Every Lane.", desc: "From Kolkata's maidan to Mumbai's slums to Shillong's hills — Indian football lives in places no broadcast camera has reached." },
-  { icon: "community",  title: "Community Over Celebrity",desc: "We are not building a fanbase. We are building a movement. Owned by the people who show up — not just by those who watch." },
+  { icon: "grassroots", title: "Grassroots First",         desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground." },
+  { icon: "data",       title: "Data Meets Passion",       desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand." },
+  { icon: "location",   title: "Every City. Every Lane.",  desc: "From Kolkata's maidan to Mumbai's slums to Shillong's hills — Indian football lives in places no broadcast camera has reached." },
+  { icon: "community",  title: "Community Over Celebrity", desc: "We are not building a fanbase. We are building a movement. Owned by the people who show up — not just by those who watch." },
 ];
 
 const VOICES = [
@@ -44,6 +52,9 @@ const CITIES = [
   "Hyderabad","Pune","Guwahati","Shillong","Kochi",
   "Jamshedpur","Bhubaneswar","Goa","Chandigarh","Lucknow",
 ];
+
+// Indian nationality keywords (API-Football uses full country names)
+const INDIAN_NATIONALITIES = new Set(["Indian", "India"]);
 
 // ─── SVG ICONS ────────────────────────────────────────────────────────────────
 function Icon({ name, size = 22 }) {
@@ -77,6 +88,436 @@ function AnimatedCounter({ target, duration = 2000 }) {
   return <span>{isNumber ? count || "0" : target}</span>;
 }
 
+// ─── FORM DOTS ────────────────────────────────────────────────────────────────
+function FormDots({ form }) {
+  if (!form) return null;
+  return (
+    <div style={{ display: "flex", gap: 3, alignItems: "center" }}>
+      {form.slice(-5).split("").map((r, i) => (
+        <div key={i} style={{
+          width: 7, height: 7, borderRadius: "50%",
+          background: r === "W" ? "#00ff87" : r === "D" ? "#ebff00" : "#ff4d4d",
+          boxShadow: r === "W" ? "0 0 4px #00ff87" : r === "D" ? "0 0 4px #ebff00" : "0 0 4px #ff4d4d",
+        }} title={r === "W" ? "Win" : r === "D" ? "Draw" : "Loss"} />
+      ))}
+    </div>
+  );
+}
+
+// ─── ISL STANDINGS COMPONENT ──────────────────────────────────────────────────
+function IslStandings() {
+  const [standings, setStandings] = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+  const [liveData,  setLiveData]  = useState(false);
+
+  useEffect(() => {
+    api.getIslStandings()
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setStandings(data);
+          setLiveData(true);
+        } else {
+          setStandings(FALLBACK_STANDINGS);
+        }
+      })
+      .catch(() => {
+        setStandings(FALLBACK_STANDINGS);
+        setError("Live data unavailable — showing cached standings");
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const rows = standings || FALLBACK_STANDINGS;
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 · Standings</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {liveData}
+          {error && (
+            <span style={{ fontSize: 9, color: "rgba(255,153,51,0.7)", fontFamily: "var(--mono)" }}>cached</span>
+          )}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0", color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 11 }}>
+          <div className="spinner" style={{ width: 14, height: 14 }} />
+          Loading ISL standings…
+        </div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          {/* Column headers */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px",
+            gap: "0 4px",
+            padding: "6px 10px",
+            marginBottom: 4,
+            background: "rgba(5,240,255,0.04)",
+            borderRadius: "var(--radius-sm)",
+          }}>
+            {["#", "Club", "P", "W", "D", "L", "GF", "GA", "GD", "Pts", "Form"].map((h, i) => (
+              <div key={h} style={{
+                fontSize: 8.5, fontWeight: 900,
+                color: "rgba(5,240,255,0.45)",
+                fontFamily: "var(--mono)",
+                textAlign: i === 1 ? "left" : "center",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+              }}>{h}</div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          {rows.map((row, i) => {
+            const isTop4   = row.pos <= 4;   // playoff zone
+            const isBottom = row.pos >= rows.length - 1; // relegation zone
+            const borderColor = isTop4 ? "rgba(0,255,135,0.4)" : isBottom ? "rgba(255,77,77,0.35)" : "transparent";
+            return (
+              <div key={row.pos} style={{
+                display: "grid",
+                gridTemplateColumns: "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px",
+                gap: "0 4px",
+                padding: "7px 10px",
+                marginBottom: 2,
+                borderRadius: "var(--radius-sm)",
+                borderLeft: `3px solid ${borderColor}`,
+                background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
+                transition: "background 0.12s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(5,240,255,0.04)"}
+                onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent"}
+              >
+                {/* Pos */}
+                <div style={{
+                  fontSize: 11, fontWeight: 900,
+                  color: isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "var(--text3)",
+                  fontFamily: "var(--mono)",
+                  textAlign: "center",
+                  alignSelf: "center",
+                }}>{row.pos}</div>
+
+                {/* Team */}
+                <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                  {row.logo ? (
+                    <img src={row.logo} alt={row.team} style={{ width: 20, height: 20, objectFit: "contain", flexShrink: 0 }}
+                      onError={e => { e.target.style.display = "none"; }} />
+                  ) : (
+                    <div style={{ width: 20, height: 20, borderRadius: 4, background: "rgba(5,240,255,0.1)", flexShrink: 0 }} />
+                  )}
+                  <span style={{
+                    fontSize: 12, fontWeight: 700,
+                    color: "#fff",
+                    fontFamily: "var(--font)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}>{row.team}</span>
+                </div>
+
+                {/* Stats cells */}
+                {[row.played, row.win, row.draw, row.loss, row.gf, row.ga,
+                  row.gd >= 0 ? `+${row.gd}` : row.gd].map((v, ci) => (
+                  <div key={ci} style={{
+                    fontSize: 11.5, fontWeight: ci === 6 ? 700 : 500,
+                    color: ci === 6 ? (row.gd >= 0 ? "#00ff87" : "#ff4d4d") : "var(--text2)",
+                    fontFamily: "var(--mono)",
+                    textAlign: "center",
+                    alignSelf: "center",
+                  }}>{v}</div>
+                ))}
+
+                {/* Points */}
+                <div style={{
+                  fontSize: 13, fontWeight: 900,
+                  color: isTop4 ? "#00ff87" : "#fff",
+                  fontFamily: "var(--mono)",
+                  textAlign: "center",
+                  alignSelf: "center",
+                }}>{row.points}</div>
+
+                {/* Form */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <FormDots form={row.form} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{ display: "flex", gap: 16, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(0,255,135,0.4)" }} />
+          <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Playoff zone (top 4)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(255,77,77,0.35)" }} />
+          <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Relegation zone</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ISL TOP SCORERS COMPONENT ────────────────────────────────────────────────
+function IslTopScorers() {
+  const [scorers,  setScorers]  = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [liveData, setLiveData] = useState(false);
+
+  useEffect(() => {
+    api.getIslTopScorers()
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setScorers(data);
+          setLiveData(true);
+        } else {
+          setScorers(FALLBACK_SCORERS);
+        }
+      })
+      .catch(() => setScorers(FALLBACK_SCORERS))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const rows = scorers || FALLBACK_SCORERS;
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 · Top Scorers</div>
+        {liveData}
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0", color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 11 }}>
+          <div className="spinner" style={{ width: 14, height: 14 }} />
+          Loading top scorers…
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+          {rows.map((p, i) => {
+            const isIndian = INDIAN_NATIONALITIES.has(p.nationality);
+            const isFirst  = i === 0;
+            return (
+              <div key={p.player || i} style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "9px 12px", borderRadius: "var(--radius)",
+                background: isFirst ? "rgba(235,255,0,0.05)" : "var(--bg3)",
+                border: `1px solid ${isFirst ? "rgba(235,255,0,0.15)" : "var(--border)"}`,
+              }}>
+                {/* Rank */}
+                <span style={{
+                  width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                  background: isFirst ? "rgba(235,255,0,0.15)" : "rgba(255,255,255,0.06)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 900,
+                  color: isFirst ? "#ebff00" : "var(--text3)",
+                  fontFamily: "var(--mono)",
+                }}>{p.rank || i + 1}</span>
+
+                {/* Photo */}
+                {p.photo ? (
+                  <img src={p.photo} alt={p.player} style={{ width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: "1.5px solid rgba(5,240,255,0.15)" }}
+                    onError={e => { e.target.style.display = "none"; }} />
+                ) : (
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(5,240,255,0.1)", flexShrink: 0 }} />
+                )}
+
+                {/* Name + team */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "var(--font)", textTransform: "uppercase", letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.player}
+                    </span>
+                    {isIndian && (
+                      <span style={{ fontSize: 8, fontWeight: 900, color: "#ff9933", background: "rgba(255,153,51,0.12)", border: "1px solid rgba(255,153,51,0.25)", borderRadius: 3, padding: "1px 5px", fontFamily: "var(--mono)", letterSpacing: "0.06em", flexShrink: 0 }}>
+                        🇮🇳 IND
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 9.5, color: "var(--text3)", fontFamily: "var(--mono)", marginTop: 2, display: "flex", alignItems: "center", gap: 5 }}>
+                    {p.logo && (
+                      <img src={p.logo} alt="" style={{ width: 12, height: 12, objectFit: "contain" }}
+                        onError={e => { e.target.style.display = "none"; }} />
+                    )}
+                    {p.team}
+                  </div>
+                </div>
+
+                {/* Goals + assists */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: isFirst ? "#ebff00" : "var(--cyan)", fontFamily: "var(--mono)", lineHeight: 1 }}>{p.goals}</div>
+                    <div style={{ fontSize: 8, color: "var(--text3)", fontFamily: "var(--mono)" }}>goals</div>
+                  </div>
+                  {p.assists > 0 && (
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.45)", fontFamily: "var(--mono)", lineHeight: 1 }}>{p.assists}</div>
+                      <div style={{ fontSize: 8, color: "var(--text3)", fontFamily: "var(--mono)" }}>ast</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ISL FIXTURES COMPONENT ───────────────────────────────────────────────────
+function IslFixtures() {
+  const [fixtures, setFixtures] = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [liveData, setLiveData] = useState(false);
+
+  useEffect(() => {
+    api.getIslFixtures(6)
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setFixtures(data);
+          setLiveData(true);
+        } else {
+          setFixtures([]);
+        }
+      })
+      .catch(() => setFixtures([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString("en-IN", { day: "numeric", month: "short", weekday: "short" });
+    } catch {
+      return dateStr.slice(0, 10);
+    }
+  };
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+    } catch { return ""; }
+  };
+
+  const statusColor = (status) => {
+    if (status === "FT" || status === "AET" || status === "PEN") return "#00ff87";
+    if (status === "1H" || status === "2H" || status === "ET" || status === "LIVE") return "#ebff00";
+    return "rgba(5,240,255,0.5)";
+  };
+
+  const isLive = (status) => ["1H","2H","ET","BT","P","SUSP","INT","LIVE"].includes(status);
+
+  if (!liveData && !loading && (!fixtures || fixtures.length === 0)) return null;
+
+  return (
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 · Upcoming Fixtures</div>
+        {liveData && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,255,135,0.08)", border: "1px solid rgba(0,255,135,0.2)" }}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff87", boxShadow: "0 0 5px #00ff87" }} />
+            <span style={{ fontSize: 9, fontWeight: 900, color: "#00ff87", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}>LIVE</span>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "20px 0", color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 11 }}>
+          <div className="spinner" style={{ width: 14, height: 14 }} />
+          Loading fixtures…
+        </div>
+      ) : fixtures && fixtures.length > 0 ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {fixtures.map((fx, i) => {
+            const live = isLive(fx.status);
+            const finished = ["FT","AET","PEN"].includes(fx.status);
+            return (
+              <div key={fx.id || i} style={{
+                display: "flex", alignItems: "center",
+                padding: "10px 14px", borderRadius: "var(--radius)",
+                background: live ? "rgba(235,255,0,0.04)" : "rgba(255,255,255,0.025)",
+                border: `1px solid ${live ? "rgba(235,255,0,0.15)" : "rgba(5,240,255,0.08)"}`,
+                position: "relative", overflow: "hidden",
+              }}>
+                {live && (
+                  <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 1, background: "rgba(235,255,0,0.4)" }} />
+                )}
+
+                {/* Date/Time */}
+                <div style={{ width: 70, flexShrink: 0, textAlign: "center" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text2)", fontFamily: "var(--mono)" }}>{formatDate(fx.date)}</div>
+                  {!finished && !live && (
+                    <div style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", marginTop: 2 }}>{formatTime(fx.date)}</div>
+                  )}
+                  {(live || finished) && (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3, marginTop: 3 }}>
+                      {live && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#ebff00", boxShadow: "0 0 4px #ebff00" }} />}
+                      <span style={{ fontSize: 9, fontWeight: 900, color: statusColor(fx.status), fontFamily: "var(--mono)" }}>{fx.status}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Home team */}
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 7, justifyContent: "flex-end" }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", fontFamily: "var(--font)", textTransform: "uppercase", letterSpacing: "0.02em", textAlign: "right" }}>{fx.home}</span>
+                  {fx.home_logo && (
+                    <img src={fx.home_logo} alt="" style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }}
+                      onError={e => { e.target.style.display = "none"; }} />
+                  )}
+                </div>
+
+                {/* Score / VS */}
+                <div style={{ width: 64, flexShrink: 0, textAlign: "center" }}>
+                  {finished || live ? (
+                    <div style={{ fontSize: 16, fontWeight: 900, fontFamily: "var(--mono)", color: live ? "#ebff00" : "#fff", letterSpacing: "0.05em" }}>
+                      {fx.home_score ?? "–"} : {fx.away_score ?? "–"}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, fontWeight: 900, color: "rgba(5,240,255,0.35)", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}>VS</div>
+                  )}
+                </div>
+
+                {/* Away team */}
+                <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 7 }}>
+                  {fx.away_logo && (
+                    <img src={fx.away_logo} alt="" style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }}
+                      onError={e => { e.target.style.display = "none"; }} />
+                  )}
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "#fff", fontFamily: "var(--font)", textTransform: "uppercase", letterSpacing: "0.02em" }}>{fx.away}</span>
+                </div>
+
+                {/* Venue */}
+                {fx.venue && (
+                  <div style={{ width: 90, flexShrink: 0, textAlign: "right", display: "none" /* hidden on mobile */ }}>
+                    <span style={{ fontSize: 8.5, color: "var(--text3)", fontFamily: "var(--mono)" }}>{fx.venue}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={{ textAlign: "center", padding: "20px 0", color: "var(--text3)", fontSize: 11, fontFamily: "var(--mono)" }}>
+          No upcoming fixtures available
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── JOIN FORM ────────────────────────────────────────────────────────────────
 function JoinForm() {
   const [step,        setStep]        = useState(0);
@@ -87,7 +528,6 @@ function JoinForm() {
   const [memberCount, setMemberCount] = useState(null);
   const roles = ["Player", "Coach", "Scout", "Fan", "Journalist", "Club Official"];
 
-  // Fetch member count on mount
   useEffect(() => {
     api.getCommunityCount().then(d => setMemberCount(d.count)).catch(() => {});
   }, []);
@@ -120,7 +560,6 @@ function JoinForm() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Live member count */}
       {memberCount !== null && (
         <div style={{
           display: "flex", alignItems: "center", gap: 10,
@@ -223,63 +662,14 @@ export default function IndianFootballCommunity() {
         <IndiaFootballQuiz />
       </div>
 
-      {/* ── ISL SPOTLIGHT ── */}
-      <div className="card" style={{ marginBottom:20 }}>
-        <div className="card-title">ISL 2024–25 · Top Scorers</div>
-        <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:16 }}>
-          {ISL_SCORERS.map((p, i) => (
-            <div key={p.name} style={{
-              display:"flex", alignItems:"center", gap:12,
-              padding:"9px 12px", borderRadius:"var(--radius)",
-              background: i === 0 ? "rgba(235,255,0,0.05)" : "var(--bg3)",
-              border: `1px solid ${i === 0 ? "rgba(235,255,0,0.15)" : "var(--border)"}`,
-            }}>
-              <span style={{
-                width:22, height:22, borderRadius:"50%", flexShrink:0,
-                background: i === 0 ? "rgba(235,255,0,0.15)" : "rgba(255,255,255,0.06)",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                fontSize:10, fontWeight:900, color: i === 0 ? "#ebff00" : "var(--text3)",
-                fontFamily:"var(--mono)",
-              }}>{i+1}</span>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <span style={{ fontSize:12, fontWeight:700, color:"#fff", fontFamily:"var(--font)", textTransform:"uppercase", letterSpacing:"0.03em" }}>{p.name}</span>
-                  {p.indian && (
-                    <span style={{ fontSize:8, fontWeight:900, color:"#ff9933", background:"rgba(255,153,51,0.12)", border:"1px solid rgba(255,153,51,0.25)", borderRadius:3, padding:"1px 5px", fontFamily:"var(--mono)", letterSpacing:"0.06em", flexShrink:0 }}>🇮🇳 IND</span>
-                  )}
-                </div>
-                <div style={{ fontSize:9.5, color:"var(--text3)", fontFamily:"var(--mono)", marginTop:2 }}>{p.club}</div>
-              </div>
-              <div style={{ display:"flex", alignItems:"center", gap:5, flexShrink:0 }}>
-                <span style={{ fontSize:18, fontWeight:900, color: i === 0 ? "#ebff00" : "var(--cyan)", fontFamily:"var(--mono)", lineHeight:1 }}>{p.goals}</span>
-                <span style={{ fontSize:9, color:"var(--text3)", fontFamily:"var(--mono)" }}>goals</span>
-              </div>
-            </div>
-          ))}
-        </div>
+      {/* ── ISL STANDINGS (LIVE) ── */}
+      <IslStandings />
 
-        {/* Indian players section */}
-        <div style={{ borderTop:"1px solid var(--border)", paddingTop:14 }}>
-          <div style={{ fontSize:9, fontWeight:900, color:"rgba(255,153,51,0.6)", textTransform:"uppercase", letterSpacing:"0.18em", fontFamily:"var(--mono)", marginBottom:10 }}>✦ Indian Football · Notable Names</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {INDIAN_ABROAD.map(p => (
-              <div key={p.name} style={{
-                display:"flex", alignItems:"flex-start", gap:10,
-                padding:"10px 12px", borderRadius:"var(--radius)",
-                background:"rgba(255,153,51,0.04)", border:"1px solid rgba(255,153,51,0.1)",
-                borderLeft:"3px solid rgba(255,153,51,0.4)",
-              }}>
-                <span style={{ fontSize:14, flexShrink:0 }}>🇮🇳</span>
-                <div>
-                  <div style={{ fontSize:12, fontWeight:700, color:"#fff", fontFamily:"var(--font)", textTransform:"uppercase", letterSpacing:"0.03em", marginBottom:2 }}>{p.name}</div>
-                  <div style={{ fontSize:10, color:"rgba(255,153,51,0.7)", fontFamily:"var(--mono)", marginBottom:3 }}>{p.league}</div>
-                  <div style={{ fontSize:11, color:"var(--text2)", fontFamily:"var(--font)", lineHeight:1.5 }}>{p.note}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* ── ISL TOP SCORERS (LIVE) ── */}
+      <IslTopScorers />
+
+      {/* ── ISL UPCOMING FIXTURES (LIVE) ── */}
+      <IslFixtures />
 
       {/* ── PILLARS ── */}
       <div id="india-vision" className="card" style={{ marginBottom:20 }}>
