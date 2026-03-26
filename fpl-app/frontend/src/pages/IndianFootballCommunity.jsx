@@ -139,7 +139,7 @@ function IslStandings() {
           {liveData && (
             <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,255,135,0.08)", border: "1px solid rgba(0,255,135,0.2)" }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff87", boxShadow: "0 0 5px #00ff87" }} />
-              <span style={{ fontSize: 9, fontWeight: 900, color: "#00ff87", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}>LIVE</span>
+              <span style={{ fontSize: 9, fontWeight: 900, color: "#00ff87", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}></span>
             </div>
           )}
           {error && (
@@ -301,7 +301,7 @@ function IslTopScorers() {
         {liveData && (
           <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,255,135,0.08)", border: "1px solid rgba(0,255,135,0.2)" }}>
             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff87", boxShadow: "0 0 5px #00ff87" }} />
-            <span style={{ fontSize: 9, fontWeight: 900, color: "#00ff87", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}>LIVE</span>
+            <span style={{ fontSize: 9, fontWeight: 900, color: "#00ff87", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}></span>
           </div>
         )}
       </div>
