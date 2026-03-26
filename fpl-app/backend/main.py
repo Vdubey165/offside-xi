@@ -1401,7 +1401,7 @@ import time as _time
 _isl_cache: dict = {}
 ISL_CACHE_TTL   = 3600   # 1 hour
 ISL_LEAGUE_ID   = 323
-ISL_SEASON      = 2025
+ISL_SEASON      = 2024
 
 def _api_football(endpoint: str, params: dict) -> dict:
     """
