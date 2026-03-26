@@ -24,22 +24,22 @@ const FALLBACK_SCORERS = [
 ];
 
 // Fallback standings (updated to match ISL 2024-25 screenshot)
+// Updated Fallback Standings with Form data (matching the colored dots)
 const FALLBACK_STANDINGS = [
-  { pos: 1, team: "ATK Mohun Bagan", played: 24, win: 17, draw: 5, loss: 2, gf: 47, ga: 16, gd: 31, points: 56 },
-  { pos: 2, team: "Goa", played: 24, win: 14, draw: 6, loss: 4, gf: 43, ga: 27, gd: 16, points: 48 },
-  { pos: 3, team: "Bengaluru", played: 24, win: 11, draw: 5, loss: 8, gf: 40, ga: 31, gd: 9, points: 38 },
-  { pos: 4, team: "NorthEast United", played: 24, win: 10, draw: 8, loss: 6, gf: 46, ga: 29, gd: 17, points: 38 },
-  { pos: 5, team: "Jamshedpur", played: 24, win: 12, draw: 2, loss: 10, gf: 37, ga: 43, gd: -6, points: 38 },
-  { pos: 6, team: "Mumbai City", played: 24, win: 9, draw: 9, loss: 6, gf: 29, ga: 28, gd: 1, points: 36 },
-  { pos: 7, team: "Odisha", played: 24, win: 8, draw: 9, loss: 7, gf: 44, ga: 37, gd: 7, points: 33 },
-  { pos: 8, team: "Kerala Blasters", played: 24, win: 8, draw: 5, loss: 11, gf: 33, ga: 37, gd: -4, points: 29 },
-  { pos: 9, team: "East Bengal", played: 24, win: 8, draw: 4, loss: 12, gf: 27, ga: 33, gd: -6, points: 28 },
-  { pos: 10, team: "Minerva Punjab", played: 24, win: 8, draw: 4, loss: 12, gf: 34, ga: 38, gd: -4, points: 28 },
-  { pos: 11, team: "Chennaiyin", played: 24, win: 7, draw: 6, loss: 11, gf: 34, ga: 39, gd: -5, points: 27 },
-  { pos: 12, team: "Hyderabad", played: 24, win: 4, draw: 6, loss: 14, gf: 22, ga: 47, gd: -25, points: 18 },
-  { pos: 13, team: "Mohammedan", played: 24, win: 2, draw: 7, loss: 15, gf: 12, ga: 43, gd: -31, points: 13 }
+  { pos: 1, team: "ATK Mohun Bagan", played: 24, win: 17, draw: 5, loss: 2, gf: 47, ga: 16, gd: 31, points: 56, form: ['W', 'W', 'W', 'D', 'W'] },
+  { pos: 2, team: "Goa", played: 24, win: 14, draw: 6, loss: 4, gf: 43, ga: 27, gd: 16, points: 48, form: ['L', 'W', 'W', 'W', 'W'] },
+  { pos: 3, team: "Bengaluru", played: 24, win: 11, draw: 5, loss: 8, gf: 40, ga: 31, gd: 9, points: 38, form: ['L', 'D', 'W', 'W', 'W'] },
+  { pos: 4, team: "NorthEast United", played: 24, win: 10, draw: 8, loss: 6, gf: 46, ga: 29, gd: 17, points: 38, form: ['W', 'D', 'W', 'W', 'W'] },
+  { pos: 5, team: "Jamshedpur", played: 24, win: 12, draw: 2, loss: 10, gf: 37, ga: 43, gd: -6, points: 38, form: ['L', 'W', 'W', 'D', 'L'] },
+  { pos: 6, team: "Mumbai City", played: 24, win: 9, draw: 9, loss: 6, gf: 29, ga: 28, gd: 1, points: 36, form: ['L', 'W', 'W', 'D', 'D'] },
+  { pos: 7, team: "Odisha", played: 24, win: 8, draw: 9, loss: 7, gf: 44, ga: 37, gd: 7, points: 33, form: ['L', 'W', 'L', 'D', 'D'] },
+  { pos: 8, team: "Kerala Blasters", played: 24, win: 8, draw: 5, loss: 11, gf: 33, ga: 37, gd: -4, points: 29, form: ['L', 'L', 'L', 'W', 'D'] },
+  { pos: 9, team: "East Bengal", played: 24, win: 8, draw: 4, loss: 12, gf: 27, ga: 33, gd: -6, points: 28, form: ['L', 'W', 'W', 'W', 'W'] },
+  { pos: 10, team: "Minerva Punjab", played: 24, win: 8, draw: 4, loss: 12, gf: 34, ga: 38, gd: -4, points: 28, form: ['L', 'L', 'W', 'L', 'W'] },
+  { pos: 11, team: "Chennaiyin", played: 24, win: 7, draw: 6, loss: 11, gf: 34, ga: 39, gd: -5, points: 27, form: ['L', 'W', 'L', 'L', 'W'] },
+  { pos: 12, team: "Hyderabad", played: 24, win: 4, draw: 6, loss: 14, gf: 22, ga: 47, gd: -25, points: 18, form: ['L', 'L', 'D', 'D', 'W'] },
+  { pos: 13, team: "Mohammedan", played: 24, win: 2, draw: 7, loss: 15, gf: 12, ga: 43, gd: -31, points: 13, form: ['W', 'D', 'L', 'L', 'L'] }
 ];
-
 const PILLARS = [
   { icon: "grassroots", title: "Grassroots First",         desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground." },
   { icon: "data",       title: "Data Meets Passion",       desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand." },
