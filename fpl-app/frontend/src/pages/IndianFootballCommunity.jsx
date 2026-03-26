@@ -293,12 +293,7 @@ function IslTopScorers() {
     <div className="card" style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 · Top Scorers</div>
-        {liveData && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,255,135,0.08)", border: "1px solid rgba(0,255,135,0.2)" }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#00ff87", boxShadow: "0 0 5px #00ff87" }} />
-            <span style={{ fontSize: 9, fontWeight: 900, color: "#00ff87", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}></span>
-          </div>
-        )}
+        {liveData}
       </div>
 
       {loading ? (
