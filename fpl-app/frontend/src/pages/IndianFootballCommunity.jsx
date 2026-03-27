@@ -113,7 +113,6 @@ function FormDots({ form }) {
 function IslStandings() {
   const [standings, setStandings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   useEffect(() => {
@@ -122,16 +121,10 @@ function IslStandings() {
 
     api.getIslStandings()
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setStandings(data);
-        } else {
-          setStandings(FALLBACK_STANDINGS);
-        }
+        if (Array.isArray(data) && data.length > 0) setStandings(data);
+        else setStandings(FALLBACK_STANDINGS);
       })
-      .catch(() => {
-        setStandings(FALLBACK_STANDINGS);
-        setError(true); // Just set to true to show a small indicator
-      })
+      .catch(() => setStandings(FALLBACK_STANDINGS))
       .finally(() => setLoading(false));
 
     return () => window.removeEventListener("resize", handleResize);
@@ -139,42 +132,35 @@ function IslStandings() {
 
   const rows = standings || FALLBACK_STANDINGS;
 
-  // Optimized grid for Mobile (8 cols) vs PC (11 cols)
+  // PC: 11 columns | Mobile: 8 columns
+  // We use fixed pixels for numbers and '1fr' ONLY for the Club name to ensure it gets the space.
   const currentGrid = isMobile 
-    ? "28px 1fr 30px 30px 30px 30px 35px 70px" 
-    : "32px 1fr 38px 38px 38px 38px 30px 30px 30px 38px 85px";
+    ? "25px 1fr 28px 28px 28px 28px 32px 70px" 
+    : "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px";
 
   const currentHeaders = isMobile 
     ? ["#", "Club", "P", "W", "D", "L", "Pts", "Form"] 
     : ["#", "Club", "P", "W", "D", "L", "GF", "GA", "GD", "Pts", "Form"];
 
   return (
-    <div className="card" style={{ marginBottom: 20, paddingBottom: 10 }}>
-      {/* Clean Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 Standings</div>
-        {error && (
-          <span style={{ fontSize: 9, color: "rgba(255,153,51,0.6)", fontFamily: "var(--mono)", textTransform: "uppercase" }}>
-            ● Offline Mode
-          </span>
-        )}
-      </div>
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div className="card-title">ISL 2024–25 · Standings</div>
 
       {loading ? (
         <div style={{ padding: "20px 0", color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 11 }}>
           Loading...
         </div>
       ) : (
-        <div style={{ width: "100%" }}>
-          {/* Column headers */}
+        <div style={{ overflowX: "hidden" }}>
+          {/* Header */}
           <div style={{
             display: "grid",
             gridTemplateColumns: currentGrid,
-            gap: "0 4px",
+            gap: "0 2px",
             padding: "8px 10px",
             background: "rgba(5,240,255,0.04)",
             borderRadius: "4px",
-            marginBottom: 6
+            marginBottom: 4
           }}>
             {currentHeaders.map((h, i) => (
               <div key={h} style={{
@@ -187,6 +173,7 @@ function IslStandings() {
           {/* Rows */}
           {rows.map((row, i) => {
             const isTop4 = row.pos <= 4;
+            // On mobile, we only map the first 4 stats (P, W, D, L)
             const stats = isMobile 
               ? [row.played, row.win, row.draw, row.loss]
               : [row.played, row.win, row.draw, row.loss, row.gf, row.ga, row.gd >= 0 ? `+${row.gd}` : row.gd];
@@ -195,19 +182,19 @@ function IslStandings() {
               <div key={row.pos} style={{
                 display: "grid",
                 gridTemplateColumns: currentGrid,
-                gap: "0 4px",
+                gap: "0 2px",
                 padding: "8px 10px",
                 alignItems: "center",
                 background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
                 borderLeft: isTop4 ? "2px solid #00ff87" : "2px solid transparent"
               }}>
+                {/* Pos */}
                 <div style={{ fontSize: 10, fontWeight: 900, color: isTop4 ? "#00ff87" : "var(--text3)", textAlign: "center", fontFamily: "var(--mono)" }}>
                   {row.pos}
                 </div>
 
-                {/* Fixed Team Name Section */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                  <div style={{ width: 16, height: 16, background: "rgba(255,255,255,0.05)", borderRadius: "2px", flexShrink: 0 }} />
+                {/* Team Name - Added flex-shrink: 1 and min-width to prevent crushing */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexShrink: 1 }}>
                   <span style={{
                     fontSize: 10.5, fontWeight: 700, color: "#fff",
                     textTransform: "uppercase", overflow: "hidden",
@@ -215,14 +202,17 @@ function IslStandings() {
                   }}>{row.team}</span>
                 </div>
 
+                {/* Main Stats */}
                 {stats.map((v, ci) => (
                   <div key={ci} style={{ fontSize: 10, color: "var(--text2)", textAlign: "center", fontFamily: "var(--mono)" }}>{v}</div>
                 ))}
 
+                {/* Points */}
                 <div style={{ fontSize: 11, fontWeight: 900, color: "#fff", textAlign: "center", fontFamily: "var(--mono)" }}>
                   {row.points}
                 </div>
 
+                {/* Form */}
                 <div style={{ display: "flex", justifyContent: "center" }}>
                   <FormDots form={row.form} />
                 </div>
