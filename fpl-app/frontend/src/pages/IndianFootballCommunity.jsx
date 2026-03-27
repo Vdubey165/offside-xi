@@ -11,26 +11,33 @@ const STATS = [
 
 // Fallback top scorers (shown while live data loads or on API failure)
 const FALLBACK_SCORERS = [
-  { rank: 1, player: "Dimitri Petratos",      nationality: "Australian", team: "NorthEast United FC", goals: 14, assists: 3 },
-  { rank: 2, player: "Rahim Ali",              nationality: "Indian",     team: "Chennaiyin FC",        goals: 11, assists: 2 },
-  { rank: 3, player: "Lallianzuala Chhangte",  nationality: "Indian",     team: "Mumbai City FC",       goals: 10, assists: 4 },
-  { rank: 4, player: "Jorge Pereyra Díaz",     nationality: "Argentine",  team: "FC Goa",               goals: 10, assists: 1 },
-  { rank: 5, player: "Manvir Singh",           nationality: "Indian",     team: "ATK Mohun Bagan",       goals: 9,  assists: 3 },
+  { rank: 1, player: "A. Ajaraie", team: "NorthEast United", goals: 14, assists: 2 },
+  { rank: 2, player: "S. Chhetri", team: "Bengaluru", goals: 14, assists: 1 },
+  { rank: 3, player: "Jesús Jiménez", team: "Kerala Blasters", goals: 11, assists: 1 },
+  { rank: 4, player: "Diego Maurício", team: "Odisha", goals: 9, assists: 5 },
+  { rank: 5, player: "L. Majcen", team: "Minerva Punjab", goals: 8, assists: 3 },
+  { rank: 6, player: "N. Karelis", team: "Mumbai City", goals: 8, assists: 2 },
+  { rank: 7, player: "Iker Guarrotxena", team: "Goa", goals: 7, assists: 1 },
+  { rank: 8, player: "Javi Hernández", team: "Jamshedpur", goals: 7, assists: 3 },
+  { rank: 9, player: "K. Peprah", team: "Kerala Blasters", goals: 6, assists: 0 },
+  { rank: 10, player: "W. Jordán", team: "Chennaiyin", goals: 6, assists: 0 }
 ];
 
 // Fallback standings (used if API is unavailable)
 const FALLBACK_STANDINGS = [
-  { pos: 1,  team: "Bengaluru FC",       played: 22, win: 14, draw: 4, loss: 4, gf: 41, ga: 22, gd: 19, points: 46 },
-  { pos: 2,  team: "ATK Mohun Bagan",    played: 22, win: 13, draw: 5, loss: 4, gf: 38, ga: 24, gd: 14, points: 44 },
-  { pos: 3,  team: "Mumbai City FC",     played: 22, win: 12, draw: 4, loss: 6, gf: 35, ga: 26, gd: 9,  points: 40 },
-  { pos: 4,  team: "FC Goa",             played: 22, win: 11, draw: 5, loss: 6, gf: 33, ga: 27, gd: 6,  points: 38 },
-  { pos: 5,  team: "NorthEast United FC",played: 22, win: 10, draw: 6, loss: 6, gf: 30, ga: 28, gd: 2,  points: 36 },
-  { pos: 6,  team: "Hyderabad FC",       played: 22, win:  9, draw: 5, loss: 8, gf: 29, ga: 30, gd:-1,  points: 32 },
-  { pos: 7,  team: "Kerala Blasters",    played: 22, win:  8, draw: 6, loss: 8, gf: 27, ga: 28, gd:-1,  points: 30 },
-  { pos: 8,  team: "Jamshedpur FC",      played: 22, win:  7, draw: 7, loss: 8, gf: 26, ga: 29, gd:-3,  points: 28 },
-  { pos: 9,  team: "Chennaiyin FC",      played: 22, win:  6, draw: 6, loss:10, gf: 25, ga: 32, gd:-7,  points: 24 },
-  { pos: 10, team: "Odisha FC",          played: 22, win:  5, draw: 5, loss:12, gf: 22, ga: 36, gd:-14, points: 20 },
-  { pos: 11, team: "Punjab FC",          played: 22, win:  3, draw: 6, loss:13, gf: 18, ga: 38, gd:-20, points: 15 },
+  { pos: 1, team: "ATK Mohun Bagan", played: 24, win: 17, draw: 5, loss: 2, gf: 47, ga: 16, gd: 31, points: 56, form: "WWWDW" },
+  { pos: 2, team: "Goa", played: 24, win: 14, draw: 6, loss: 4, gf: 43, ga: 27, gd: 16, points: 48, form: "LWWWW" },
+  { pos: 3, team: "Bengaluru", played: 24, win: 11, draw: 5, loss: 8, gf: 40, ga: 31, gd: 9, points: 38, form: "LDWWW" },
+  { pos: 4, team: "NorthEast United", played: 24, win: 10, draw: 8, loss: 6, gf: 46, ga: 29, gd: 17, points: 38, form: "WDWWW" },
+  { pos: 5, team: "Jamshedpur", played: 24, win: 12, draw: 2, loss: 10, gf: 37, ga: 43, gd: -6, points: 38, form: "LWWDL" },
+  { pos: 6, team: "Mumbai City", played: 24, win: 9, draw: 9, loss: 6, gf: 29, ga: 28, gd: 1, points: 36, form: "LWWD D" },
+  { pos: 7, team: "Odisha", played: 24, win: 8, draw: 9, loss: 7, gf: 44, ga: 37, gd: 7, points: 33, form: "LWLDD" },
+  { pos: 8, team: "Kerala Blasters", played: 24, win: 8, draw: 5, loss: 11, gf: 33, ga: 37, gd: -4, points: 29, form: "LLLW D" },
+  { pos: 9, team: "East Bengal", played: 24, win: 8, draw: 4, loss: 12, gf: 27, ga: 33, gd: -6, points: 28, form: "LWWWW" },
+  { pos: 10, team: "Minerva Punjab", played: 24, win: 8, draw: 4, loss: 12, gf: 34, ga: 38, gd: -4, points: 28, form: "LLWLW" },
+  { pos: 11, team: "Chennaiyin", played: 24, win: 7, draw: 6, loss: 11, gf: 34, ga: 39, gd: -5, points: 27, form: "LWL LW" },
+  { pos: 12, team: "Hyderabad", played: 24, win: 4, draw: 6, loss: 14, gf: 22, ga: 47, gd: -25, points: 18, form: "LLDDW" },
+  { pos: 13, team: "Mohammedan", played: 24, win: 2, draw: 7, loss: 15, gf: 12, ga: 43, gd: -31, points: 13, form: "WDLLL" }
 ];
 
 const PILLARS = [
