@@ -39,7 +39,6 @@ const FALLBACK_STANDINGS = [
   { pos: 12, team: "Hyderabad", played: 24, win: 4, draw: 6, loss: 14, gf: 22, ga: 47, gd: -25, points: 18, form: "LLDDW" },
   { pos: 13, team: "Mohammedan", played: 24, win: 2, draw: 7, loss: 15, gf: 12, ga: 43, gd: -31, points: 13, form: "WDLLL" }
 ];
-
 const PILLARS = [
   { icon: "grassroots", title: "Grassroots First",         desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground." },
   { icon: "data",       title: "Data Meets Passion",       desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand." },
@@ -137,44 +136,16 @@ function IslStandings() {
 
   const rows = standings || FALLBACK_STANDINGS;
 
-  // Abbreviate long club names for compact display
-  const abbr = name => {
-    const map = {
-      "Bengaluru FC": "BLR FC",
-      "ATK Mohun Bagan": "ATKMB",
-      "Mumbai City FC": "MCFC",
-      "FC Goa": "Goa",
-      "NorthEast United FC": "NEUFC",
-      "Hyderabad FC": "HFC",
-      "Kerala Blasters FC": "KBFC",
-      "Kerala Blasters": "KBFC",
-      "Jamshedpur FC": "JFC",
-      "Chennaiyin FC": "CFC",
-      "Odisha FC": "OFC",
-      "Punjab FC": "PFC",
-      "Mohammedan SC": "MSC",
-      "East Bengal FC": "EBFC",
-    };
-    return map[name] || name;
-  };
-
   return (
     <div className="card" style={{ marginBottom: 20 }}>
-      <style>{`
-        .isl-table { width: 100%; }
-        /* Desktop: full columns */
-        .isl-col-gf, .isl-col-ga, .isl-col-form { display: table-cell; }
-        @media (max-width: 500px) {
-          /* Mobile: hide GF, GA, Form — keep #, Club, P, W, D, L, GD, Pts */
-          .isl-col-gf, .isl-col-ga, .isl-col-form { display: none; }
-        }
-      `}</style>
-
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 · Standings</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {error && <span style={{ fontSize: 9, color: "rgba(255,153,51,0.7)", fontFamily: "var(--mono)" }}>cached</span>}
+          {liveData}
+          {error && (
+            <span style={{ fontSize: 9, color: "rgba(255,153,51,0.7)", fontFamily: "var(--mono)" }}>cached</span>
+          )}
         </div>
       </div>
 
@@ -184,92 +155,107 @@ function IslStandings() {
           Loading ISL standings…
         </div>
       ) : (
-        <table className="isl-table" style={{ borderCollapse: "collapse", width: "100%" }}>
-          <thead>
-            <tr style={{ background: "rgba(5,240,255,0.04)", borderRadius: "var(--radius-sm)" }}>
-              {[
-                { label: "#",    cls: "",              align: "center" },
-                { label: "Club", cls: "",              align: "left"   },
-                { label: "P",    cls: "",              align: "center" },
-                { label: "W",    cls: "",              align: "center" },
-                { label: "D",    cls: "",              align: "center" },
-                { label: "L",    cls: "",              align: "center" },
-                { label: "GF",   cls: "isl-col-gf",   align: "center" },
-                { label: "GA",   cls: "isl-col-ga",   align: "center" },
-                { label: "GD",   cls: "",              align: "center" },
-                { label: "Pts",  cls: "",              align: "center" },
-                { label: "Form", cls: "isl-col-form",  align: "center" },
-              ].map(({ label, cls, align }) => (
-                <th key={label} className={cls} style={{
-                  padding: "6px 4px",
-                  fontSize: 8.5, fontWeight: 900,
-                  color: "rgba(5,240,255,0.45)",
+        <div style={{ overflowX: "auto" }}>
+          {/* Column headers */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px",
+            gap: "0 4px",
+            padding: "6px 10px",
+            marginBottom: 4,
+            background: "rgba(5,240,255,0.04)",
+            borderRadius: "var(--radius-sm)",
+          }}>
+            {["#", "Club", "P", "W", "D", "L", "GF", "GA", "GD", "Pts", "Form"].map((h, i) => (
+              <div key={h} style={{
+                fontSize: 8.5, fontWeight: 900,
+                color: "rgba(5,240,255,0.45)",
+                fontFamily: "var(--mono)",
+                textAlign: i === 1 ? "left" : "center",
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+              }}>{h}</div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          {rows.map((row, i) => {
+            const isTop4   = row.pos <= 4;   // playoff zone
+            const isBottom = row.pos >= rows.length - 1; // relegation zone
+            const borderColor = isTop4 ? "rgba(0,255,135,0.4)" : isBottom ? "rgba(255,77,77,0.35)" : "transparent";
+            return (
+              <div key={row.pos} style={{
+                display: "grid",
+                gridTemplateColumns: "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px",
+                gap: "0 4px",
+                padding: "7px 10px",
+                marginBottom: 2,
+                borderRadius: "var(--radius-sm)",
+                borderLeft: `3px solid ${borderColor}`,
+                background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
+                transition: "background 0.12s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(5,240,255,0.04)"}
+                onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent"}
+              >
+                {/* Pos */}
+                <div style={{
+                  fontSize: 11, fontWeight: 900,
+                  color: isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "var(--text3)",
                   fontFamily: "var(--mono)",
-                  textAlign: align,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  whiteSpace: "nowrap",
-                  border: "none",
-                  background: "transparent",
-                }}>{label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => {
-              const isTop4   = row.pos <= 4;
-              const isBottom = row.pos >= rows.length - 1;
-              const gdStr    = row.gd >= 0 ? `+${row.gd}` : `${row.gd}`;
-              const borderColor = isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "transparent";
-              return (
-                <tr key={row.pos} style={{
-                  background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
-                  borderLeft: `3px solid ${borderColor}`,
-                }}>
-                  {/* # */}
-                  <td style={{ padding: "7px 4px", textAlign: "center", fontSize: 11, fontWeight: 900, color: isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "var(--text3)", fontFamily: "var(--mono)", width: 22 }}>
-                    {row.pos}
-                  </td>
-                  {/* Club */}
-                  <td style={{ padding: "7px 4px 7px 6px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                      {row.logo ? (
-                        <img src={row.logo} alt={row.team} style={{ width: 18, height: 18, objectFit: "contain", flexShrink: 0 }}
-                          onError={e => { e.target.style.display = "none"; }} />
-                      ) : (
-                        <div style={{ width: 18, height: 18, borderRadius: 3, background: "rgba(5,240,255,0.1)", flexShrink: 0 }} />
-                      )}
-                      <span style={{
-                        fontSize: 11.5, fontWeight: 700, color: "#fff",
-                        fontFamily: "var(--font)", textTransform: "uppercase",
-                        letterSpacing: "0.02em", overflow: "hidden",
-                        textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      }}>{abbr(row.team)}</span>
-                    </div>
-                  </td>
-                  {/* P W D L */}
-                  {[row.played, row.win, row.draw, row.loss].map((v, ci) => (
-                    <td key={ci} style={{ padding: "7px 4px", textAlign: "center", fontSize: 11, color: "var(--text2)", fontFamily: "var(--mono)", width: 26 }}>{v}</td>
-                  ))}
-                  {/* GF — hidden on mobile */}
-                  <td className="isl-col-gf" style={{ padding: "7px 4px", textAlign: "center", fontSize: 11, color: "var(--text2)", fontFamily: "var(--mono)", width: 26 }}>{row.gf}</td>
-                  {/* GA — hidden on mobile */}
-                  <td className="isl-col-ga" style={{ padding: "7px 4px", textAlign: "center", fontSize: 11, color: "var(--text2)", fontFamily: "var(--mono)", width: 26 }}>{row.ga}</td>
-                  {/* GD */}
-                  <td style={{ padding: "7px 4px", textAlign: "center", fontSize: 11, fontWeight: 700, color: row.gd >= 0 ? "#00ff87" : "#ff4d4d", fontFamily: "var(--mono)", width: 30 }}>{gdStr}</td>
-                  {/* Pts */}
-                  <td style={{ padding: "7px 4px", textAlign: "center", fontSize: 13, fontWeight: 900, color: isTop4 ? "#00ff87" : "#fff", fontFamily: "var(--mono)", width: 30 }}>{row.points}</td>
-                  {/* Form — hidden on mobile */}
-                  <td className="isl-col-form" style={{ padding: "7px 4px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <FormDots form={row.form} />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  textAlign: "center",
+                  alignSelf: "center",
+                }}>{row.pos}</div>
+
+                {/* Team */}
+                <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
+                  {row.logo ? (
+                    <img src={row.logo} alt={row.team} style={{ width: 20, height: 20, objectFit: "contain", flexShrink: 0 }}
+                      onError={e => { e.target.style.display = "none"; }} />
+                  ) : (
+                    <div style={{ width: 20, height: 20, borderRadius: 4, background: "rgba(5,240,255,0.1)", flexShrink: 0 }} />
+                  )}
+                  <span style={{
+                    fontSize: 12, fontWeight: 700,
+                    color: "#fff",
+                    fontFamily: "var(--font)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}>{row.team}</span>
+                </div>
+
+                {/* Stats cells */}
+                {[row.played, row.win, row.draw, row.loss, row.gf, row.ga,
+                  row.gd >= 0 ? `+${row.gd}` : row.gd].map((v, ci) => (
+                  <div key={ci} style={{
+                    fontSize: 11.5, fontWeight: ci === 6 ? 700 : 500,
+                    color: ci === 6 ? (row.gd >= 0 ? "#00ff87" : "#ff4d4d") : "var(--text2)",
+                    fontFamily: "var(--mono)",
+                    textAlign: "center",
+                    alignSelf: "center",
+                  }}>{v}</div>
+                ))}
+
+                {/* Points */}
+                <div style={{
+                  fontSize: 13, fontWeight: 900,
+                  color: isTop4 ? "#00ff87" : "#fff",
+                  fontFamily: "var(--mono)",
+                  textAlign: "center",
+                  alignSelf: "center",
+                }}>{row.points}</div>
+
+                {/* Form */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <FormDots form={row.form} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Legend */}
@@ -561,9 +547,6 @@ function SurveyInsights() {
     <div className="card" style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>FSL Survey · What India Wants</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(235,255,0,0.08)", border: "1px solid rgba(235,255,0,0.2)" }}>
-          <span style={{ fontSize: 9, fontWeight: 900, color: "#ebff00", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}>35 RESPONSES</span>
-        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -571,7 +554,7 @@ function SurveyInsights() {
         {/* Must-Have Features — multi-select, % of 35 */}
         <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "14px 16px", border: "1px solid var(--border)" }}>
           <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--mono)", marginBottom: 12 }}>
-            ✦ Must-Have FSL Features
+            ✦ Must-Have FSL Features (Users could select up to 2 options) 
           </div>
           <SurveyBar label="AI player predictions / tips" pct={60} color="var(--cyan)" />
           <SurveyBar label="Live scores & stats" pct={57} color="var(--cyan)" />
@@ -592,7 +575,7 @@ function SurveyInsights() {
           <div style={{ marginTop: 14, padding: "10px 12px", background: "rgba(0,255,135,0.05)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: "var(--radius-sm)" }}>
             <div style={{ fontSize: 10, color: "#00ff87", fontFamily: "var(--mono)", fontWeight: 900, marginBottom: 4 }}>THE OPPORTUNITY</div>
             <div style={{ fontSize: 11, color: "var(--text2)", fontFamily: "var(--font)", lineHeight: 1.6 }}>
-              57% cite no community or no engagement tools — exactly what FSL fixes.
+              37% cite no community or no engagement tools — exactly what FSL fixes.
             </div>
           </div>
         </div>
