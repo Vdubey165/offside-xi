@@ -9,36 +9,30 @@ const STATS = [
   { val: "94",   label: "Chhetri Goals. And Counting."  },
 ];
 
-// Fallback top scorers (updated to match ISL 2024-25 screenshot)
+// Fallback top scorers (shown while live data loads or on API failure)
 const FALLBACK_SCORERS = [
-  { rank: 1, player: "A. Ajaraie", team: "NorthEast United", goals: 14, assists: 2 },
-  { rank: 2, player: "S. Chhetri", team: "Bengaluru", goals: 14, assists: 1 },
-  { rank: 3, player: "Jesús Jiménez", team: "Kerala Blasters", goals: 11, assists: 1 },
-  { rank: 4, player: "Diego Maurício", team: "Odisha", goals: 9, assists: 5 },
-  { rank: 5, player: "L. Majcen", team: "Minerva Punjab", goals: 8, assists: 3 },
-  { rank: 6, player: "N. Karelis", team: "Mumbai City", goals: 8, assists: 2 },
-  { rank: 7, player: "Iker Guarrotxena", team: "Goa", goals: 7, assists: 1 },
-  { rank: 8, player: "Javi Hernández", team: "Jamshedpur", goals: 7, assists: 3 },
-  { rank: 9, player: "K. Peprah", team: "Kerala Blasters", goals: 6, assists: 0 },
-  { rank: 10, player: "W. Jordán", team: "Chennaiyin", goals: 6, assists: 0 }
+  { rank: 1, player: "Dimitri Petratos",      nationality: "Australian", team: "NorthEast United FC", goals: 14, assists: 3 },
+  { rank: 2, player: "Rahim Ali",              nationality: "Indian",     team: "Chennaiyin FC",        goals: 11, assists: 2 },
+  { rank: 3, player: "Lallianzuala Chhangte",  nationality: "Indian",     team: "Mumbai City FC",       goals: 10, assists: 4 },
+  { rank: 4, player: "Jorge Pereyra Díaz",     nationality: "Argentine",  team: "FC Goa",               goals: 10, assists: 1 },
+  { rank: 5, player: "Manvir Singh",           nationality: "Indian",     team: "ATK Mohun Bagan",       goals: 9,  assists: 3 },
 ];
 
-// Fallback standings (updated to match ISL 2024-25 screenshot)
+// Fallback standings (used if API is unavailable)
 const FALLBACK_STANDINGS = [
-  { pos: 1, team: "ATK Mohun Bagan", played: 24, win: 17, draw: 5, loss: 2, gf: 47, ga: 16, gd: 31, points: 56, form: "WWWDW" },
-  { pos: 2, team: "Goa", played: 24, win: 14, draw: 6, loss: 4, gf: 43, ga: 27, gd: 16, points: 48, form: "LWWWW" },
-  { pos: 3, team: "Bengaluru", played: 24, win: 11, draw: 5, loss: 8, gf: 40, ga: 31, gd: 9, points: 38, form: "LDWWW" },
-  { pos: 4, team: "NorthEast United", played: 24, win: 10, draw: 8, loss: 6, gf: 46, ga: 29, gd: 17, points: 38, form: "WDWWW" },
-  { pos: 5, team: "Jamshedpur", played: 24, win: 12, draw: 2, loss: 10, gf: 37, ga: 43, gd: -6, points: 38, form: "LWWDL" },
-  { pos: 6, team: "Mumbai City", played: 24, win: 9, draw: 9, loss: 6, gf: 29, ga: 28, gd: 1, points: 36, form: "LWWD D" },
-  { pos: 7, team: "Odisha", played: 24, win: 8, draw: 9, loss: 7, gf: 44, ga: 37, gd: 7, points: 33, form: "LWLDD" },
-  { pos: 8, team: "Kerala Blasters", played: 24, win: 8, draw: 5, loss: 11, gf: 33, ga: 37, gd: -4, points: 29, form: "LLLW D" },
-  { pos: 9, team: "East Bengal", played: 24, win: 8, draw: 4, loss: 12, gf: 27, ga: 33, gd: -6, points: 28, form: "LWWWW" },
-  { pos: 10, team: "Minerva Punjab", played: 24, win: 8, draw: 4, loss: 12, gf: 34, ga: 38, gd: -4, points: 28, form: "LLWLW" },
-  { pos: 11, team: "Chennaiyin", played: 24, win: 7, draw: 6, loss: 11, gf: 34, ga: 39, gd: -5, points: 27, form: "LWL LW" },
-  { pos: 12, team: "Hyderabad", played: 24, win: 4, draw: 6, loss: 14, gf: 22, ga: 47, gd: -25, points: 18, form: "LLDDW" },
-  { pos: 13, team: "Mohammedan", played: 24, win: 2, draw: 7, loss: 15, gf: 12, ga: 43, gd: -31, points: 13, form: "WDLLL" }
+  { pos: 1,  team: "Bengaluru FC",       played: 22, win: 14, draw: 4, loss: 4, gf: 41, ga: 22, gd: 19, points: 46 },
+  { pos: 2,  team: "ATK Mohun Bagan",    played: 22, win: 13, draw: 5, loss: 4, gf: 38, ga: 24, gd: 14, points: 44 },
+  { pos: 3,  team: "Mumbai City FC",     played: 22, win: 12, draw: 4, loss: 6, gf: 35, ga: 26, gd: 9,  points: 40 },
+  { pos: 4,  team: "FC Goa",             played: 22, win: 11, draw: 5, loss: 6, gf: 33, ga: 27, gd: 6,  points: 38 },
+  { pos: 5,  team: "NorthEast United FC",played: 22, win: 10, draw: 6, loss: 6, gf: 30, ga: 28, gd: 2,  points: 36 },
+  { pos: 6,  team: "Hyderabad FC",       played: 22, win:  9, draw: 5, loss: 8, gf: 29, ga: 30, gd:-1,  points: 32 },
+  { pos: 7,  team: "Kerala Blasters",    played: 22, win:  8, draw: 6, loss: 8, gf: 27, ga: 28, gd:-1,  points: 30 },
+  { pos: 8,  team: "Jamshedpur FC",      played: 22, win:  7, draw: 7, loss: 8, gf: 26, ga: 29, gd:-3,  points: 28 },
+  { pos: 9,  team: "Chennaiyin FC",      played: 22, win:  6, draw: 6, loss:10, gf: 25, ga: 32, gd:-7,  points: 24 },
+  { pos: 10, team: "Odisha FC",          played: 22, win:  5, draw: 5, loss:12, gf: 22, ga: 36, gd:-14, points: 20 },
+  { pos: 11, team: "Punjab FC",          played: 22, win:  3, draw: 6, loss:13, gf: 18, ga: 38, gd:-20, points: 15 },
 ];
+
 const PILLARS = [
   { icon: "grassroots", title: "Grassroots First",         desc: "Indian football doesn't need a saviour at the top. It needs a thousand coaches at the bottom. We start from the ground." },
   { icon: "data",       title: "Data Meets Passion",       desc: "We believe emotion builds the game, but data sustains it. Analytics for scouts, coaches, and fans who care enough to understand." },
@@ -110,117 +104,150 @@ function FormDots({ form }) {
   );
 }
 
+// ─── ISL STANDINGS COMPONENT ──────────────────────────────────────────────────
 function IslStandings() {
   const [standings, setStandings] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [loading,   setLoading]   = useState(true);
+  const [isMobile,  setIsMobile]  = useState(typeof window !== "undefined" ? window.innerWidth < 500 : false);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handleResize);
-
+    const onResize = () => setIsMobile(window.innerWidth < 500);
+    window.addEventListener("resize", onResize);
     api.getIslStandings()
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) setStandings(data);
-        else setStandings(FALLBACK_STANDINGS);
-      })
+      .then(data => setStandings(Array.isArray(data) && data.length > 0 ? data : FALLBACK_STANDINGS))
       .catch(() => setStandings(FALLBACK_STANDINGS))
       .finally(() => setLoading(false));
-
-    return () => window.removeEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   const rows = standings || FALLBACK_STANDINGS;
 
-  // PC: 11 columns | Mobile: 8 columns
-  // We use fixed pixels for numbers and '1fr' ONLY for the Club name to ensure it gets the space.
-  const currentGrid = isMobile 
-    ? "25px 1fr 28px 28px 28px 28px 32px 70px" 
-    : "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px";
+  // Short names that fit in ~80px on a phone
+  const shortName = name => ({
+    "Bengaluru FC":        "Bengaluru",
+    "ATK Mohun Bagan":     "ATKMB",
+    "Mumbai City FC":      "Mumbai",
+    "FC Goa":              "Goa",
+    "NorthEast United FC": "NE Utd",
+    "Hyderabad FC":        "Hyderabad",
+    "Kerala Blasters FC":  "Kerala",
+    "Kerala Blasters":     "Kerala",
+    "Jamshedpur FC":       "Jamshedpur",
+    "Chennaiyin FC":       "Chennaiyin",
+    "Odisha FC":           "Odisha",
+    "Punjab FC":           "Punjab",
+    "Mohammedan SC":       "Mohammedan",
+    "East Bengal FC":      "East Bengal",
+  }[name] || name);
 
-  const currentHeaders = isMobile 
-    ? ["#", "Club", "P", "W", "D", "L", "Pts", "Form"] 
-    : ["#", "Club", "P", "W", "D", "L", "GF", "GA", "GD", "Pts", "Form"];
+  const NUM = { fontSize: 11, fontFamily: "var(--mono)", textAlign: "center", color: "var(--text2)" };
+  const HDR = { fontSize: 8, fontWeight: 900, color: "rgba(5,240,255,0.5)", fontFamily: "var(--mono)", textAlign: "center", textTransform: "uppercase", letterSpacing: "0.08em" };
 
   return (
     <div className="card" style={{ marginBottom: 20 }}>
       <div className="card-title">ISL 2024–25 · Standings</div>
 
       {loading ? (
-        <div style={{ padding: "20px 0", color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 11 }}>
-          Loading...
-        </div>
+        <div style={{ padding: "20px 0", color: "var(--text3)", fontFamily: "var(--mono)", fontSize: 11 }}>Loading…</div>
       ) : (
-        <div style={{ overflowX: "hidden" }}>
-          {/* Header */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: currentGrid,
-            gap: "0 2px",
-            padding: "8px 10px",
-            background: "rgba(5,240,255,0.04)",
-            borderRadius: "4px",
-            marginBottom: 4
-          }}>
-            {currentHeaders.map((h, i) => (
-              <div key={h} style={{
-                fontSize: 8, fontWeight: 900, color: "rgba(5,240,255,0.45)",
-                fontFamily: "var(--mono)", textAlign: i === 1 ? "left" : "center"
-              }}>{h}</div>
-            ))}
-          </div>
+        <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: 22 }} />                          {/* # */}
+            <col />                                                 {/* Club — takes all leftover space */}
+            <col style={{ width: isMobile ? 22 : 28 }} />         {/* P */}
+            <col style={{ width: isMobile ? 22 : 28 }} />         {/* W */}
+            <col style={{ width: isMobile ? 22 : 28 }} />         {/* D */}
+            <col style={{ width: isMobile ? 22 : 28 }} />         {/* L */}
+            {!isMobile && <col style={{ width: 28 }} />}          {/* GF */}
+            {!isMobile && <col style={{ width: 28 }} />}          {/* GA */}
+            {!isMobile && <col style={{ width: 32 }} />}          {/* GD */}
+            <col style={{ width: isMobile ? 28 : 32 }} />         {/* Pts */}
+            <col style={{ width: isMobile ? 52 : 72 }} />         {/* Form */}
+          </colgroup>
 
-          {/* Rows */}
-          {rows.map((row, i) => {
-            const isTop4 = row.pos <= 4;
-            // On mobile, we only map the first 4 stats (P, W, D, L)
-            const stats = isMobile 
-              ? [row.played, row.win, row.draw, row.loss]
-              : [row.played, row.win, row.draw, row.loss, row.gf, row.ga, row.gd >= 0 ? `+${row.gd}` : row.gd];
+          <thead>
+            <tr style={{ background: "rgba(5,240,255,0.04)" }}>
+              <th style={{ ...HDR, textAlign: "center", padding: "6px 0" }}>#</th>
+              <th style={{ ...HDR, textAlign: "left",   padding: "6px 6px" }}>Club</th>
+              <th style={HDR}>P</th>
+              <th style={HDR}>W</th>
+              <th style={HDR}>D</th>
+              <th style={HDR}>L</th>
+              {!isMobile && <th style={HDR}>GF</th>}
+              {!isMobile && <th style={HDR}>GA</th>}
+              {!isMobile && <th style={HDR}>GD</th>}
+              <th style={{ ...HDR, color: "rgba(5,240,255,0.8)" }}>Pts</th>
+              <th style={HDR}>Form</th>
+            </tr>
+          </thead>
 
-            return (
-              <div key={row.pos} style={{
-                display: "grid",
-                gridTemplateColumns: currentGrid,
-                gap: "0 2px",
-                padding: "8px 10px",
-                alignItems: "center",
-                background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
-                borderLeft: isTop4 ? "2px solid #00ff87" : "2px solid transparent"
-              }}>
-                {/* Pos */}
-                <div style={{ fontSize: 10, fontWeight: 900, color: isTop4 ? "#00ff87" : "var(--text3)", textAlign: "center", fontFamily: "var(--mono)" }}>
-                  {row.pos}
-                </div>
+          <tbody>
+            {rows.map((row, i) => {
+              const isTop4   = row.pos <= 4;
+              const isBottom = row.pos >= rows.length - 1;
+              const gdStr    = row.gd >= 0 ? `+${row.gd}` : `${row.gd}`;
+              return (
+                <tr key={row.pos} style={{
+                  background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
+                  borderLeft: `3px solid ${isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "transparent"}`,
+                }}>
+                  {/* # */}
+                  <td style={{ ...NUM, fontWeight: 900, padding: "7px 0", color: isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "var(--text3)" }}>{row.pos}</td>
 
-                {/* Team Name - Added flex-shrink: 1 and min-width to prevent crushing */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexShrink: 1 }}>
-                  <span style={{
-                    fontSize: 10.5, fontWeight: 700, color: "#fff",
-                    textTransform: "uppercase", overflow: "hidden",
-                    textOverflow: "ellipsis", whiteSpace: "nowrap"
-                  }}>{row.team}</span>
-                </div>
+                  {/* Club */}
+                  <td style={{ padding: "7px 6px", maxWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5, overflow: "hidden" }}>
+                      {!isMobile && row.logo && (
+                        <img src={row.logo} alt="" style={{ width: 16, height: 16, objectFit: "contain", flexShrink: 0 }}
+                          onError={e => { e.target.style.display = "none"; }} />
+                      )}
+                      <span style={{
+                        fontSize: isMobile ? 11 : 12, fontWeight: 700, color: "#fff",
+                        fontFamily: "var(--font)", textTransform: "uppercase",
+                        letterSpacing: "0.02em", overflow: "hidden",
+                        textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        display: "block",
+                      }}>{isMobile ? shortName(row.team) : row.team}</span>
+                    </div>
+                  </td>
 
-                {/* Main Stats */}
-                {stats.map((v, ci) => (
-                  <div key={ci} style={{ fontSize: 10, color: "var(--text2)", textAlign: "center", fontFamily: "var(--mono)" }}>{v}</div>
-                ))}
+                  {/* P W D L */}
+                  <td style={NUM}>{row.played}</td>
+                  <td style={NUM}>{row.win}</td>
+                  <td style={NUM}>{row.draw}</td>
+                  <td style={NUM}>{row.loss}</td>
 
-                {/* Points */}
-                <div style={{ fontSize: 11, fontWeight: 900, color: "#fff", textAlign: "center", fontFamily: "var(--mono)" }}>
-                  {row.points}
-                </div>
+                  {/* GF GA GD — desktop only */}
+                  {!isMobile && <td style={NUM}>{row.gf}</td>}
+                  {!isMobile && <td style={NUM}>{row.ga}</td>}
+                  {!isMobile && <td style={{ ...NUM, fontWeight: 700, color: row.gd >= 0 ? "#00ff87" : "#ff4d4d" }}>{gdStr}</td>}
 
-                {/* Form */}
-                <div style={{ display: "flex", justifyContent: "center" }}>
-                  <FormDots form={row.form} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  {/* Pts */}
+                  <td style={{ ...NUM, fontWeight: 900, fontSize: 12, color: isTop4 ? "#00ff87" : "#fff" }}>{row.points}</td>
+
+                  {/* Form */}
+                  <td style={{ padding: "7px 0" }}>
+                    <div style={{ display: "flex", justifyContent: "center" }}>
+                      <FormDots form={row.form} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
+
+      <div style={{ display: "flex", gap: 16, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(0,255,135,0.4)" }} />
+          <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Playoff zone (top 4)</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(255,77,77,0.35)" }} />
+          <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Relegation zone</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -499,6 +526,9 @@ function SurveyInsights() {
     <div className="card" style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>FSL Survey · What India Wants</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 20, background: "rgba(235,255,0,0.08)", border: "1px solid rgba(235,255,0,0.2)" }}>
+          <span style={{ fontSize: 9, fontWeight: 900, color: "#ebff00", fontFamily: "var(--mono)", letterSpacing: "0.1em" }}>35 RESPONSES</span>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -506,7 +536,7 @@ function SurveyInsights() {
         {/* Must-Have Features — multi-select, % of 35 */}
         <div style={{ background: "var(--bg3)", borderRadius: "var(--radius)", padding: "14px 16px", border: "1px solid var(--border)" }}>
           <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "var(--mono)", marginBottom: 12 }}>
-            ✦ Must-Have FSL Features (Users could select up to 2 options) 
+            ✦ Must-Have FSL Features
           </div>
           <SurveyBar label="AI player predictions / tips" pct={60} color="var(--cyan)" />
           <SurveyBar label="Live scores & stats" pct={57} color="var(--cyan)" />
@@ -527,7 +557,7 @@ function SurveyInsights() {
           <div style={{ marginTop: 14, padding: "10px 12px", background: "rgba(0,255,135,0.05)", border: "1px solid rgba(0,255,135,0.15)", borderRadius: "var(--radius-sm)" }}>
             <div style={{ fontSize: 10, color: "#00ff87", fontFamily: "var(--mono)", fontWeight: 900, marginBottom: 4 }}>THE OPPORTUNITY</div>
             <div style={{ fontSize: 11, color: "var(--text2)", fontFamily: "var(--font)", lineHeight: 1.6 }}>
-              37% cite no community or no engagement tools — exactly what FSL fixes.
+              57% cite no community or no engagement tools — exactly what FSL fixes.
             </div>
           </div>
         </div>
