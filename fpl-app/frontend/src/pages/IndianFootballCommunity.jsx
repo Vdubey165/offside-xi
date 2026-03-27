@@ -109,15 +109,21 @@ function FormDots({ form }) {
     </div>
   );
 }
-
-// ─── ISL STANDINGS COMPONENT ──────────────────────────────────────────────────
+//isl standing component
 function IslStandings() {
   const [standings, setStandings] = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [liveData,  setLiveData]  = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [liveData, setLiveData] = useState(false);
+  
+  // 1. ADDED: Responsive state
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   useEffect(() => {
+    // 2. ADDED: Resize listener to protect PC version
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handleResize);
+
     api.getIslStandings()
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
@@ -132,20 +138,30 @@ function IslStandings() {
         setError("Live data unavailable — showing cached standings");
       })
       .finally(() => setLoading(false));
+
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const rows = standings || FALLBACK_STANDINGS;
 
+  // 3. UPDATED: Dynamic Grid Templates
+  // PC: Original 11 cols | Mobile: 8 cols (Removed GF, GA, GD)
+  const pcGrid = "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px";
+  const mobileGrid = "28px 1fr 32px 32px 32px 32px 36px 70px";
+  const currentGrid = isMobile ? mobileGrid : pcGrid;
+
+  // 4. UPDATED: Dynamic Headers
+  const allHeaders = ["#", "Club", "P", "W", "D", "L", "GF", "GA", "GD", "Pts", "Form"];
+  const mobileHeaders = ["#", "Club", "P", "W", "D", "L", "Pts", "Form"];
+  const currentHeaders = isMobile ? mobileHeaders : allHeaders;
+
   return (
     <div className="card" style={{ marginBottom: 20 }}>
-      {/* Header */}
+      {/* Header Info */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>ISL 2024–25 · Standings</div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {liveData}
-          {error && (
-            <span style={{ fontSize: 9, color: "rgba(255,153,51,0.7)", fontFamily: "var(--mono)" }}>cached</span>
-          )}
+          {error}
         </div>
       </div>
 
@@ -156,17 +172,17 @@ function IslStandings() {
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          {/* Column headers */}
+          {/* Column headers - Now Dynamic */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px",
+            gridTemplateColumns: currentGrid,
             gap: "0 4px",
             padding: "6px 10px",
             marginBottom: 4,
             background: "rgba(5,240,255,0.04)",
             borderRadius: "var(--radius-sm)",
           }}>
-            {["#", "Club", "P", "W", "D", "L", "GF", "GA", "GD", "Pts", "Form"].map((h, i) => (
+            {currentHeaders.map((h, i) => (
               <div key={h} style={{
                 fontSize: 8.5, fontWeight: 900,
                 color: "rgba(5,240,255,0.45)",
@@ -178,15 +194,21 @@ function IslStandings() {
             ))}
           </div>
 
-          {/* Rows */}
+          {/* Rows - Now Dynamic */}
           {rows.map((row, i) => {
-            const isTop4   = row.pos <= 4;   // playoff zone
-            const isBottom = row.pos >= rows.length - 1; // relegation zone
+            const isTop4 = row.pos <= 4;
+            const isBottom = row.pos >= rows.length - 1;
             const borderColor = isTop4 ? "rgba(0,255,135,0.4)" : isBottom ? "rgba(255,77,77,0.35)" : "transparent";
+            
+            // Build the stat array based on screen size
+            const statsToDisplay = isMobile 
+              ? [row.played, row.win, row.draw, row.loss]
+              : [row.played, row.win, row.draw, row.loss, row.gf, row.ga, row.gd >= 0 ? `+${row.gd}` : row.gd];
+
             return (
               <div key={row.pos} style={{
                 display: "grid",
-                gridTemplateColumns: "28px 1fr 36px 36px 36px 36px 28px 28px 28px 36px 80px",
+                gridTemplateColumns: currentGrid,
                 gap: "0 4px",
                 padding: "7px 10px",
                 marginBottom: 2,
@@ -194,59 +216,30 @@ function IslStandings() {
                 borderLeft: `3px solid ${borderColor}`,
                 background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent",
                 transition: "background 0.12s",
-              }}
-                onMouseEnter={e => e.currentTarget.style.background = "rgba(5,240,255,0.04)"}
-                onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent"}
-              >
+              }}>
                 {/* Pos */}
-                <div style={{
-                  fontSize: 11, fontWeight: 900,
-                  color: isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "var(--text3)",
-                  fontFamily: "var(--mono)",
-                  textAlign: "center",
-                  alignSelf: "center",
-                }}>{row.pos}</div>
+                <div style={{ fontSize: 11, fontWeight: 900, color: isTop4 ? "#00ff87" : isBottom ? "#ff4d4d" : "var(--text3)", fontFamily: "var(--mono)", textAlign: "center", alignSelf: "center" }}>{row.pos}</div>
 
-                {/* Team */}
+                {/* Team - Ellipsis added for mobile safety */}
                 <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                  {row.logo ? (
-                    <img src={row.logo} alt={row.team} style={{ width: 20, height: 20, objectFit: "contain", flexShrink: 0 }}
-                      onError={e => { e.target.style.display = "none"; }} />
-                  ) : (
-                    <div style={{ width: 20, height: 20, borderRadius: 4, background: "rgba(5,240,255,0.1)", flexShrink: 0 }} />
-                  )}
                   <span style={{
-                    fontSize: 12, fontWeight: 700,
-                    color: "#fff",
-                    fontFamily: "var(--font)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.03em",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
+                    fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "var(--font)",
+                    textTransform: "uppercase", letterSpacing: "0.03em", overflow: "hidden",
+                    textOverflow: "ellipsis", whiteSpace: "nowrap"
                   }}>{row.team}</span>
                 </div>
 
-                {/* Stats cells */}
-                {[row.played, row.win, row.draw, row.loss, row.gf, row.ga,
-                  row.gd >= 0 ? `+${row.gd}` : row.gd].map((v, ci) => (
+                {/* Stats cells (Conditional) */}
+                {statsToDisplay.map((v, ci) => (
                   <div key={ci} style={{
-                    fontSize: 11.5, fontWeight: ci === 6 ? 700 : 500,
-                    color: ci === 6 ? (row.gd >= 0 ? "#00ff87" : "#ff4d4d") : "var(--text2)",
-                    fontFamily: "var(--mono)",
-                    textAlign: "center",
-                    alignSelf: "center",
+                    fontSize: 11.5, fontWeight: (!isMobile && ci === 6) ? 700 : 500,
+                    color: (!isMobile && ci === 6) ? (row.gd >= 0 ? "#00ff87" : "#ff4d4d") : "var(--text2)",
+                    fontFamily: "var(--mono)", textAlign: "center", alignSelf: "center",
                   }}>{v}</div>
                 ))}
 
                 {/* Points */}
-                <div style={{
-                  fontSize: 13, fontWeight: 900,
-                  color: isTop4 ? "#00ff87" : "#fff",
-                  fontFamily: "var(--mono)",
-                  textAlign: "center",
-                  alignSelf: "center",
-                }}>{row.points}</div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: isTop4 ? "#00ff87" : "#fff", fontFamily: "var(--mono)", textAlign: "center", alignSelf: "center" }}>{row.points}</div>
 
                 {/* Form */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -257,17 +250,13 @@ function IslStandings() {
           })}
         </div>
       )}
-
-      {/* Legend */}
+      
+      {/* Legend Footer */}
       <div style={{ display: "flex", gap: 16, marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(0,255,135,0.4)" }} />
-          <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Playoff zone (top 4)</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(255,77,77,0.35)" }} />
-          <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Relegation zone</span>
-        </div>
+         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+           <div style={{ width: 10, height: 10, borderRadius: 1, background: "rgba(0,255,135,0.4)" }} />
+           <span style={{ fontSize: 9, color: "var(--text3)", fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Playoff zone</span>
+         </div>
       </div>
     </div>
   );
