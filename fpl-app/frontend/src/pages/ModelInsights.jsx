@@ -80,53 +80,23 @@ export default function ModelInsights() {
       </div>
 
       <div className="two-col">
-        <div className="card">
-          <div className="card-title">Feature Importance</div>
-          {Object.entries(data.feature_importances).map(([feat, val], i) => (
-            <div key={feat} className="feat-row">
-              <div className="feat-label">{FEATURE_LABELS[feat] || feat}</div>
-              <div className="feat-track">
-                <div className="feat-fill" style={{ width: `${(val / maxImp) * 100}%`, opacity: i === 0 ? 1 : 0.6 + (1 - i / 10) * 0.4 }} />
-              </div>
-              <div className="feat-val">{val.toLocaleString()}</div>
-            </div>
-          ))}
-          <div style={{ marginTop: 18, padding: "12px 14px", background: "var(--bg3)", borderRadius: "var(--radius-sm)", borderLeft: "2px solid var(--accent)" }}>
-            <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.7 }}>
-              <strong style={{ color: "var(--text)" }}>Key insight:</strong> Minutes played dominates — player availability matters more than raw talent. Fixture difficulty adds forward-looking context the rolling averages alone cannot capture.
-            </div>
-          </div>
-        </div>
-
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="card">
-            <div className="card-title">Model Comparison</div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "0 0 8px", borderBottom: "1px solid var(--border)", fontSize: 10.5, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'Geist Mono', monospace" }}>
-              <span>Model</span><span>MAE</span><span>vs Baseline</span>
+            <div className="card-title">Feature Importance</div>
+            {Object.entries(data.feature_importances).map(([feat, val], i) => (
+              <div key={feat} className="feat-row">
+                <div className="feat-label">{FEATURE_LABELS[feat] || feat}</div>
+                <div className="feat-track">
+                  <div className="feat-fill" style={{ width: `${(val / maxImp) * 100}%`, opacity: i === 0 ? 1 : 0.6 + (1 - i / 10) * 0.4 }} />
+                </div>
+                <div className="feat-val">{val.toLocaleString()}</div>
+              </div>
+            ))}
+            <div style={{ marginTop: 18, padding: "12px 14px", background: "var(--bg3)", borderRadius: "var(--radius-sm)", borderLeft: "2px solid var(--accent)" }}>
+              <div style={{ fontSize: 12, color: "var(--text2)", lineHeight: 1.7 }}>
+                <strong style={{ color: "var(--text)" }}>Key insight:</strong> Minutes played dominates — player availability matters more than raw talent. Fixture difficulty adds forward-looking context the rolling averages alone cannot capture.
+              </div>
             </div>
-            {data.model_comparison.map((m, i) => (
-              <div key={m.model} className={`model-row ${i === data.model_comparison.length - 1 ? "best" : ""}`}>
-                <div className="model-name">{m.model}</div>
-                <div className="model-mae">{m.mae}</div>
-                <div className="model-imp">{m.improvement}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="card">
-            <div className="card-title">Pipeline</div>
-            {[
-              ["Data",      "817 players · GW history from FPL API · 20,703 rows"],
-              ["Features",  "3/5-GW rolling averages blended 70% form + 30% season"],
-              ["Training",  "80/20 split · Optuna hyperparameter search · 50 trials"],
-              ["Inference", "Latest GW features → predicted pts for next GW"],
-              ["Optimizer", "ILP (PuLP/CBC) · 2-phase: squad selection → starting XI"],
-            ].map(([key, val]) => (
-              <div key={key} className="info-row">
-                <div className="info-key">{key}</div>
-                <div className="info-val">{val}</div>
-              </div>
-            ))}
           </div>
 
           <div className="card">
@@ -179,7 +149,7 @@ export default function ModelInsights() {
                             fontSize: 10,
                             fontWeight: 900,
                             color: "rgba(255,255,255,0.85)",
-                            fontFamily: "'Geist Mono', monospace",
+                            fontFamily: "var(--mono)",
                             letterSpacing: "0.08em",
                             textTransform: "uppercase",
                             borderBottom: "1px solid rgba(255,255,255,0.06)",
@@ -194,7 +164,7 @@ export default function ModelInsights() {
                             fontSize: 10,
                             fontWeight: 900,
                             color: "rgba(255,255,255,0.85)",
-                            fontFamily: "'Geist Mono', monospace",
+                            fontFamily: "var(--mono)",
                             letterSpacing: "0.08em",
                             textTransform: "uppercase",
                             borderBottom: "1px solid rgba(255,255,255,0.06)",
@@ -209,7 +179,7 @@ export default function ModelInsights() {
                             fontSize: 10,
                             fontWeight: 900,
                             color: "rgba(255,255,255,0.85)",
-                            fontFamily: "'Geist Mono', monospace",
+                            fontFamily: "var(--mono)",
                             letterSpacing: "0.08em",
                             textTransform: "uppercase",
                             borderBottom: "1px solid rgba(255,255,255,0.06)",
@@ -229,25 +199,25 @@ export default function ModelInsights() {
                           }}
                         >
                           <td style={{ padding: "10px 12px", verticalAlign: "top" }}>
-                            <span
+                            <div
                               style={{
                                 fontSize: 11,
-                                color: "var(--blue)",
-                                textDecoration: "underline",
-                                fontFamily: "'Geist Mono', monospace",
+                                color: "rgba(255,255,255,0.82)",
+                                fontFamily: "var(--mono)",
+                                letterSpacing: "0.02em",
                               }}
                               title={FEATURE_LABELS[row.feature] || row.feature}
                             >
                               {row.feature}
-                            </span>
-                            <div style={{ marginTop: 4, fontSize: 10.5, color: "rgba(255,255,255,0.55)", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                            </div>
+                            <div style={{ marginTop: 4, fontSize: 11.5, color: "var(--text3)", fontFamily: "'Barlow Condensed', sans-serif" }}>
                               {FEATURE_LABELS[row.feature] || row.feature}
                             </div>
                           </td>
-                          <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 11, color: "rgba(255,255,255,0.7)", fontFamily: "'Barlow Condensed', sans-serif" }}>
+                          <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 11.5, color: "rgba(255,255,255,0.7)", fontFamily: "'Barlow Condensed', sans-serif" }}>
                             {row.type}
                           </td>
-                          <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 11.5, color: "rgba(255,255,255,0.72)", fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1.6 }}>
+                          <td style={{ padding: "10px 12px", verticalAlign: "top", fontSize: 12, color: "rgba(255,255,255,0.72)", fontFamily: "'Barlow Condensed', sans-serif", lineHeight: 1.6 }}>
                             {row.meaning}
                           </td>
                         </tr>
@@ -259,10 +229,42 @@ export default function ModelInsights() {
             )}
 
             {!showGuide && (
-              <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text3)", lineHeight: 1.6 }}>
+              <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text3)", lineHeight: 1.6, fontFamily: "'Barlow Condensed', sans-serif" }}>
                 Tap + to see what each feature means and why it matters.
               </div>
             )}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="card">
+            <div className="card-title">Model Comparison</div>
+            <div style={{ display: "flex", justifyContent: "space-between", padding: "0 0 8px", borderBottom: "1px solid var(--border)", fontSize: 10.5, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: "'Geist Mono', monospace" }}>
+              <span>Model</span><span>MAE</span><span>vs Baseline</span>
+            </div>
+            {data.model_comparison.map((m, i) => (
+              <div key={m.model} className={`model-row ${i === data.model_comparison.length - 1 ? "best" : ""}`}>
+                <div className="model-name">{m.model}</div>
+                <div className="model-mae">{m.mae}</div>
+                <div className="model-imp">{m.improvement}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="card">
+            <div className="card-title">Pipeline</div>
+            {[
+              ["Data",      "817 players · GW history from FPL API · 20,703 rows"],
+              ["Features",  "3/5-GW rolling averages blended 70% form + 30% season"],
+              ["Training",  "80/20 split · Optuna hyperparameter search · 50 trials"],
+              ["Inference", "Latest GW features → predicted pts for next GW"],
+              ["Optimizer", "ILP (PuLP/CBC) · 2-phase: squad selection → starting XI"],
+            ].map(([key, val]) => (
+              <div key={key} className="info-row">
+                <div className="info-key">{key}</div>
+                <div className="info-val">{val}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
