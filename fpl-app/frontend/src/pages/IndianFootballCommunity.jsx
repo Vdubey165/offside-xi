@@ -290,6 +290,8 @@ function IslTopScorers() {
   }, []);
 
   const rows = scorers || FALLBACK_SCORERS;
+  const maxGoals = Math.max(...rows.map((p) => Number(p.goals) || 0), 1);
+  const maxAssists = Math.max(...rows.map((p) => Number(p.assists) || 0), 1);
 
   return (
     <div className="card" style={{ marginBottom: 20 }}>
@@ -374,7 +376,7 @@ function IslTopScorers() {
         </div>
       )}
 
-      <IslScorerPanel scorer={selected} pinned={pinned} onPinToggle={togglePin} onClose={() => setSelected(null)} />
+      <IslScorerPanel scorer={selected} pinned={pinned} onPinToggle={togglePin} maxGoals={maxGoals} maxAssists={maxAssists} onClose={() => setSelected(null)} />
     </div>
   );
 }
@@ -865,7 +867,7 @@ export default function IndianFootballCommunity() {
   );
 }
 
-function IslScorerPanel({ scorer, pinned, onPinToggle, onClose }) {
+function IslScorerPanel({ scorer, pinned, onPinToggle, maxGoals = 1, maxAssists = 1, onClose }) {
   if (!scorer) return null;
 
   const name = scorer.player || "Player";
@@ -880,6 +882,70 @@ function IslScorerPanel({ scorer, pinned, onPinToggle, onClose }) {
   const pinnedGoals = pinned?.goals ?? 0;
   const pinnedAssists = pinned?.assists ?? 0;
   const pinnedContrib = (Number(pinnedGoals) || 0) + (Number(pinnedAssists) || 0);
+
+  const goalsPct = Math.min(100, (Number(goals) || 0) / Math.max(1, maxGoals) * 100);
+  const assistsPct = Math.min(100, (Number(assists) || 0) / Math.max(1, maxAssists) * 100);
+  const pinnedGoalsPct = Math.min(100, (Number(pinnedGoals) || 0) / Math.max(1, maxGoals) * 100);
+  const pinnedAssistsPct = Math.min(100, (Number(pinnedAssists) || 0) / Math.max(1, maxAssists) * 100);
+
+  const goalsShare = contributions > 0 ? Math.round(((Number(goals) || 0) / contributions) * 100) : 0;
+  const pinnedGoalsShare = pinnedContrib > 0 ? Math.round(((Number(pinnedGoals) || 0) / pinnedContrib) * 100) : 0;
+
+  const Ring = ({ share, accentA, accentB, label }) => (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <div
+        style={{
+          width: 66,
+          height: 66,
+          borderRadius: "50%",
+          background: `conic-gradient(${accentA} 0 ${share}%, ${accentB} ${share}% 100%)`,
+          boxShadow: `0 0 18px ${accentA}25`,
+          border: "1px solid rgba(255,255,255,0.07)",
+          display: "grid",
+          placeItems: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
+            background: "linear-gradient(180deg,#06101c 0%,#080f1a 100%)",
+            border: "1px solid rgba(255,255,255,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 900, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif" }}>{share}%</div>
+          <div style={{ fontSize: 8, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>G</div>
+        </div>
+      </div>
+      <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>{label}</div>
+    </div>
+  );
+
+  const MetricBar = ({ label, value, pct, color, compareValue, comparePct, compareLabel }) => (
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.14em", textTransform: "uppercase" }}>{label}</div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          {compareLabel && (
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace" }}>{compareLabel}: {compareValue}</span>
+          )}
+          <span style={{ fontSize: 12, fontWeight: 900, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif" }}>{value}</span>
+        </div>
+      </div>
+      <div style={{ position: "relative", height: 10, borderRadius: 999, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: `linear-gradient(90deg, ${color}55, ${color})`, boxShadow: `0 0 18px ${color}30`, borderRadius: 999, transition: "width 0.35s ease" }} />
+        {comparePct != null && (
+          <div style={{ position: "absolute", inset: 0, width: `${comparePct}%`, background: "rgba(235,255,0,0.35)", borderRight: "2px solid rgba(235,255,0,0.85)", borderRadius: 999, mixBlendMode: "screen" }} />
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -1115,6 +1181,54 @@ function IslScorerPanel({ scorer, pinned, onPinToggle, onClose }) {
               <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
                 <div style={{ fontSize: 18, fontWeight: 900, color: "#05f0ff", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{assists}</div>
                 <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Assists</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+              <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.18em", fontFamily: "'Barlow Condensed',monospace" }}>
+                ✦ Visual Breakdown
+              </div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+                Scale: top scorers
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <MetricBar
+                  label="Goals"
+                  value={goals}
+                  pct={goalsPct}
+                  color="#00ff87"
+                  compareLabel={hasCompare ? "Pinned" : null}
+                  compareValue={hasCompare ? pinnedGoals : null}
+                  comparePct={hasCompare ? pinnedGoalsPct : null}
+                />
+                <MetricBar
+                  label="Assists"
+                  value={assists}
+                  pct={assistsPct}
+                  color="#05f0ff"
+                  compareLabel={hasCompare ? "Pinned" : null}
+                  compareValue={hasCompare ? pinnedAssists : null}
+                  comparePct={hasCompare ? pinnedAssistsPct : null}
+                />
+                <MetricBar
+                  label="Contrib"
+                  value={contributions}
+                  pct={Math.min(100, (contributions / Math.max(1, (maxGoals + maxAssists))) * 100)}
+                  color="#ebff00"
+                  compareLabel={hasCompare ? "Pinned" : null}
+                  compareValue={hasCompare ? pinnedContrib : null}
+                  comparePct={hasCompare ? Math.min(100, (pinnedContrib / Math.max(1, (maxGoals + maxAssists))) * 100) : null}
+                />
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center" }}>
+                <Ring share={goalsShare} accentA="#00ff87" accentB="#05f0ff" label="Goals share" />
+                {hasCompare && <Ring share={pinnedGoalsShare} accentA="#ebff00" accentB="rgba(255,255,255,0.18)" label="Pinned share" />}
               </div>
             </div>
           </div>

@@ -3,6 +3,175 @@ import { api } from "../api/client";
 
 const POS_ORDER = ["GK", "DEF", "MID", "FWD"];
 
+// ── Rule-based Team Analysis (no API calls) ───────────────────────────────────
+function generateTeamAnalysis(result) {
+  const starters = result?.starters ?? [];
+  const bench    = result?.bench    ?? [];
+
+  // 1. Premium vs value counts
+  const premiumPlayers = starters.filter((p) => (p.price ?? 0) >= 9);
+  const valuePlayers   = starters.filter((p) => (p.price ?? 0) <= 6);
+  const premiumCount   = premiumPlayers.length;
+  const valueCount     = valuePlayers.length;
+
+  const squadStyle =
+    premiumCount >= 4 ? "aggressive (premium-heavy)" :
+    premiumCount >= 2 ? "balanced" :
+    "budget-focused (value-heavy)";
+
+  // 2. Formation / position counts in starting XI
+  const posCounts = starters.reduce((acc, p) => {
+    acc[p.position] = (acc[p.position] || 0) + 1;
+    return acc;
+  }, {});
+  const defCount = posCounts.DEF || 0;
+  const midCount = posCounts.MID || 0;
+  const fwdCount = posCounts.FWD || 0;
+
+  const dominantPos =
+    midCount >= fwdCount && midCount >= defCount ? "midfield" :
+    fwdCount > defCount  ? "attack" :
+    "defence";
+
+  const formation = `${defCount}-${midCount}-${fwdCount}`;
+
+  // 3. Captain logic
+  const captainName = result?.captain ?? "the captain";
+  const captainPlayer = starters.find((p) => p.web_name === captainName);
+  const captainPts    = captainPlayer?.predicted_pts ?? "—";
+
+  // 4. Top value pick (best pts/price ratio among value players)
+  const bestValue = valuePlayers
+    .filter((p) => p.price > 0)
+    .sort((a, b) => (b.predicted_pts / b.price) - (a.predicted_pts / a.price))[0];
+
+  // 5. Bench depth note
+  const benchGK  = bench.find((p) => p.position === "GK");
+  const benchNote = benchGK
+    ? `The bench is anchored by a budget GK (${benchGK.web_name}) to free up funds for outfield quality.`
+    : "The bench provides positional cover across all outfield roles.";
+
+  // Build sentences
+  const s1 = `This ${formation} squad takes a ${squadStyle} approach, featuring ${premiumCount} premium player${premiumCount !== 1 ? "s" : ""} (£9m+) and ${valueCount} budget pick${valueCount !== 1 ? "s" : ""} (£6m or under) in the starting XI.`;
+
+  const s2 = `The ${dominantPos} is prioritised with ${dominantPos === "midfield" ? midCount : dominantPos === "attack" ? fwdCount : defCount} players in that area, reflecting the ILP optimiser's search for maximum point-scoring potential in the current gameweek.`;
+
+  const s3 = bestValue
+    ? `${captainName} earns the armband with ${captainPts} predicted points — the highest in the XI — while ${bestValue.web_name} (£${bestValue.price?.toFixed(1)}m) stands out as the top value pick, delivering strong projected returns for the price.`
+    : `${captainName} earns the armband with ${captainPts} predicted points — the highest in the starting XI — making them the clear choice to double up on returns.`;
+
+  const s4 = `${benchNote} The squad costs £${result?.total_cost}m in total, leaving £${result?.budget_remaining}m in the bank, with an expected ${result?.predicted_points} points from the starting eleven.`;
+
+  return [s1, s2, s3, s4].join(" ");
+}
+
+function TeamAnalysis({ result }) {
+  if (!result) return null;
+  const text = generateTeamAnalysis(result);
+
+  return (
+    <div
+      style={{
+        marginTop: 20,
+        marginBottom: 4,
+        padding: "20px 22px",
+        background: "rgba(0,255,135,0.04)",
+        border: "1px solid rgba(0,255,135,0.18)",
+        borderRadius: 12,
+        borderLeft: "3px solid #00ff87",
+        animation: "fadeUp 0.35s ease both",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <div
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            background: "rgba(0,255,135,0.15)",
+            border: "1px solid rgba(0,255,135,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 13,
+            flexShrink: 0,
+          }}
+        >
+          📊
+        </div>
+        <div>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 900,
+              color: "rgba(0,255,135,0.6)",
+              fontFamily: "'Barlow Condensed', monospace",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              lineHeight: 1,
+            }}
+          >
+            ✦ Team Analysis · Rule-Based Breakdown
+          </div>
+        </div>
+      </div>
+
+      {/* Stat chips */}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+        {[
+          { label: "Formation",  value: (() => { const d = result.starters.filter(p=>p.position==="DEF").length; const m = result.starters.filter(p=>p.position==="MID").length; const f = result.starters.filter(p=>p.position==="FWD").length; return `${d}-${m}-${f}`; })() },
+          { label: "Pred. Pts",  value: result.predicted_points },
+          { label: "Total Cost", value: `£${result.total_cost}m` },
+          { label: "In Bank",    value: `£${result.budget_remaining}m` },
+          { label: "Premium",    value: `${result.starters.filter(p=>(p.price??0)>=9).length} players` },
+          { label: "Value",      value: `${result.starters.filter(p=>(p.price??0)<=6).length} players` },
+        ].map(({ label, value }) => (
+          <div
+            key={label}
+            style={{
+              padding: "4px 10px",
+              background: "rgba(0,255,135,0.08)",
+              border: "1px solid rgba(0,255,135,0.15)",
+              borderRadius: 6,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <span style={{ fontSize: 9, fontWeight: 900, color: "rgba(0,255,135,0.5)", fontFamily: "'Barlow Condensed', monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
+              {label}
+            </span>
+            <span style={{ fontSize: 11.5, fontWeight: 900, color: "#00ff87", fontFamily: "'Barlow Condensed', monospace" }}>
+              {value}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Analysis text */}
+      <p
+        style={{
+          fontSize: 13.5,
+          color: "rgba(255,255,255,0.80)",
+          fontFamily: "'Barlow Condensed', sans-serif",
+          lineHeight: 1.85,
+          margin: 0,
+        }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
 export default function OptimalSquad() {
   const [budget,  setBudget]  = useState(100);
   const [result,  setResult]  = useState(null);
@@ -299,6 +468,8 @@ No bullet points. Plain paragraph(s) only.`;
               </div>
             </div>
           </div>
+
+          <TeamAnalysis result={result} />
 
           <button
             onClick={explainTeam}
