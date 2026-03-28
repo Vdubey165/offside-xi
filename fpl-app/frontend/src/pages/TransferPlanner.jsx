@@ -16,6 +16,131 @@ export default function TransferPlanner() {
   const [loadingSquad, setLoadingSquad] = useState(false);
   const [loadingOpt,   setLoadingOpt]   = useState(false);
   const [error,        setError]        = useState(null);
+  const [explanation, setExplanation] = useState(null);
+  const [explaining, setExplaining] = useState(false);
+
+  async function explainTransfers() {
+    if (!result) return;
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      setExplanation("Missing VITE_ANTHROPIC_API_KEY. Add it to your frontend environment and reload.");
+      return;
+    }
+
+    setExplaining(true);
+    setExplanation(null);
+    try {
+      const outList = (result.transfers_out || [])
+        .map((p) => `${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, pred ${p.predicted_pts} pts)`)
+        .join(", ");
+      const inList = (result.transfers_in || [])
+        .map((p) => `${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, pred ${p.predicted_pts} pts)`)
+        .join(", ");
+
+      const prompt = `You are the AI engine behind Offside XI, an FPL decision tool.
+You just optimised this manager's transfers using a LightGBM model + hit-aware ILP.
+
+Transfers OUT: ${outList || "None"}
+Transfers IN:  ${inList || "None"}
+Transfers made: ${result.transfers_made}
+Hits taken: ${result.hits_taken} (${result.points_hit} pts penalty)
+Net predicted points gain: ${result.net_pts_gain}
+New captain: ${result.captain}
+New vice captain: ${result.vice_captain}
+Gameweek: ${result.gameweek}
+Budget in bank: £${result.itb}m
+
+Explain in 4–5 sentences why these transfers were recommended. Be specific — use player names.
+Cover: (1) why each player was sold and what made the replacements better, (2) whether the
+hit (if any) is justified by the predicted gain, (3) the new captain logic.
+Write confidently, like an analyst briefing a manager before deadline day.
+No bullet points. Plain paragraph(s) only.`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 400,
+          stream: true,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        let msg = `Anthropic error (${response.status})`;
+        try {
+          const err = await response.json();
+          msg = err?.error?.message || msg;
+        } catch {
+        }
+        throw new Error(msg);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !response.body) {
+        const data = await response.json();
+        const text =
+          data.content?.map((b) => b.text || "").join("") || "Could not generate explanation.";
+        setExplanation(text);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        while (buffer.includes("\n\n")) {
+          const idx = buffer.indexOf("\n\n");
+          const chunk = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payloadStr = trimmed.slice(5).trim();
+            if (!payloadStr || payloadStr === "[DONE]") continue;
+
+            let payload;
+            try {
+              payload = JSON.parse(payloadStr);
+            } catch {
+              continue;
+            }
+
+            if (payload?.type === "error") {
+              throw new Error(payload?.error?.message || "Anthropic streaming error");
+            }
+
+            if (payload?.type === "content_block_delta" && payload?.delta?.type === "text_delta") {
+              const delta = payload.delta.text || "";
+              if (delta) setExplanation((prev) => (prev ?? "") + delta);
+            }
+
+            if (payload?.type === "content_block_start" && payload?.content_block?.type === "text") {
+              const startText = payload?.content_block?.text || "";
+              if (startText) setExplanation((prev) => (prev ?? "") + startText);
+            }
+          }
+        }
+      }
+
+      setExplanation((prev) => prev || "Could not generate explanation.");
+    } catch {
+      setExplanation("Failed to generate explanation. Please try again.");
+    } finally {
+      setExplaining(false);
+    }
+  }
 
   // Auto-fill Team ID when user logs in
   useEffect(() => {
@@ -35,6 +160,7 @@ export default function TransferPlanner() {
   async function fetchSquad() {
     if (!teamId) return;
     setLoadingSquad(true); setError(null); setSquadData(null); setResult(null); setLocked([]);
+    setExplanation(null); setExplaining(false);
     try {
       const data = await api.fetchSquad(teamId);
       setSquadData(data); setFreeTf(data.free_transfers);
@@ -44,6 +170,7 @@ export default function TransferPlanner() {
 
   async function optimize() {
     setLoadingOpt(true); setError(null); setResult(null);
+    setExplanation(null); setExplaining(false);
     try {
       setResult(await api.optimizeTransfers({ team_id: parseInt(teamId), free_transfers: freeTf, hit_cost: 4, locked_players: locked }));
     } catch (e) { setError(e.message); }
@@ -268,6 +395,74 @@ export default function TransferPlanner() {
                 </div>
               </div>
             </>
+          )}
+
+          <button
+            onClick={explainTransfers}
+            disabled={explaining}
+            style={{
+              marginTop: 16,
+              background: "linear-gradient(135deg,#05f0ff,#0090ff)",
+              color: "#001a2e",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 900,
+              fontSize: 13,
+              padding: "10px 22px",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {explaining ? (
+              <>
+                <div className="spinner" style={{ width: 14, height: 14 }} />
+                🤖 Analysing…
+              </>
+            ) : (
+              "Explain My Transfers"
+            )}
+          </button>
+
+          {explanation !== null && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "18px 20px",
+                background: "rgba(5,240,255,0.04)",
+                border: "1px solid rgba(5,240,255,0.18)",
+                borderRadius: 12,
+                borderLeft: "3px solid #05f0ff",
+                animation: "fadeUp 0.3s ease both",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 900,
+                  color: "rgba(5,240,255,0.5)",
+                  fontFamily: "'Barlow Condensed', monospace",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  marginBottom: 10,
+                }}
+              >
+                ✦ AI Explanation · LightGBM + ILP Reasoning
+              </div>
+              <p
+                style={{
+                  fontSize: 13.5,
+                  color: "rgba(255,255,255,0.82)",
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  lineHeight: 1.85,
+                  margin: 0,
+                }}
+              >
+                {explanation}
+              </p>
+            </div>
           )}
         </div>
       )}

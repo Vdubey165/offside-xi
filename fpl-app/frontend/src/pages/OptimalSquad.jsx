@@ -8,9 +8,143 @@ export default function OptimalSquad() {
   const [result,  setResult]  = useState(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
+  const [explanation, setExplanation] = useState(null);
+  const [explaining, setExplaining] = useState(false);
+
+  async function explainTeam() {
+    if (!result) return;
+    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      setExplanation("Missing VITE_ANTHROPIC_API_KEY. Add it to your frontend environment and reload.");
+      return;
+    }
+
+    setExplaining(true);
+    setExplanation(null);
+    try {
+      const starters = result.starters;
+      const bench = result.bench;
+      const prompt = `You are the AI engine behind Offside XI, an FPL decision tool.
+You just built this optimal squad using a LightGBM model (MAE 1.021, 34.7% better than
+baseline) and Integer Linear Programming with a £${result.total_cost}m budget.
+
+Starting XI:
+${starters
+  .map(
+    (p) =>
+      `- ${p.web_name} (${p.position}, ${p.team_name}, £${p.price?.toFixed(1)}m, predicted ${p.predicted_pts} pts)`
+  )
+  .join("\n")}
+
+Captain: ${result.captain} (2× points)
+Vice Captain: ${result.vice_captain}
+
+Bench:
+${bench
+  .map(
+    (p) =>
+      `- ${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, predicted ${p.predicted_pts} pts)`
+  )
+  .join("\n")}
+
+Budget remaining: £${result.budget_remaining}m
+Total predicted points (XI): ${result.predicted_points}
+
+Explain in 4–6 sentences why this squad was built. Be specific — mention actual player names.
+Cover: (1) why the captain was chosen, (2) the key premium picks vs value picks balance,
+(3) any notable position choices, (4) the bench strategy.
+Write in a confident, engaging tone — like a football analyst talking to a fan.
+No bullet points. Plain paragraph(s) only.`;
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 400,
+          stream: true,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        let msg = `Anthropic error (${response.status})`;
+        try {
+          const err = await response.json();
+          msg = err?.error?.message || msg;
+        } catch {
+        }
+        throw new Error(msg);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !response.body) {
+        const data = await response.json();
+        const text =
+          data.content?.map((b) => b.text || "").join("") || "Could not generate explanation.";
+        setExplanation(text);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        while (buffer.includes("\n\n")) {
+          const idx = buffer.indexOf("\n\n");
+          const chunk = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payloadStr = trimmed.slice(5).trim();
+            if (!payloadStr || payloadStr === "[DONE]") continue;
+
+            let payload;
+            try {
+              payload = JSON.parse(payloadStr);
+            } catch {
+              continue;
+            }
+
+            if (payload?.type === "error") {
+              throw new Error(payload?.error?.message || "Anthropic streaming error");
+            }
+
+            if (payload?.type === "content_block_delta" && payload?.delta?.type === "text_delta") {
+              const delta = payload.delta.text || "";
+              if (delta) setExplanation((prev) => (prev ?? "") + delta);
+            }
+
+            if (payload?.type === "content_block_start" && payload?.content_block?.type === "text") {
+              const startText = payload?.content_block?.text || "";
+              if (startText) setExplanation((prev) => (prev ?? "") + startText);
+            }
+          }
+        }
+      }
+
+      setExplanation((prev) => prev || "Could not generate explanation.");
+    } catch {
+      setExplanation("Failed to generate explanation. Please try again.");
+    } finally {
+      setExplaining(false);
+    }
+  }
 
   async function run() {
     setLoading(true); setError(null); setResult(null);
+    setExplanation(null); setExplaining(false);
     try { setResult(await api.optimizeSquad(budget)); }
     catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -118,6 +252,73 @@ export default function OptimalSquad() {
               </div>
             </div>
           </div>
+
+          <button
+            onClick={explainTeam}
+            disabled={explaining}
+            style={{
+              background: "linear-gradient(135deg,#05f0ff,#0090ff)",
+              color: "#001a2e",
+              fontFamily: "'Barlow Condensed', sans-serif",
+              fontWeight: 900,
+              fontSize: 13,
+              padding: "10px 22px",
+              borderRadius: 8,
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            {explaining ? (
+              <>
+                <div className="spinner" style={{ width: 14, height: 14 }} />
+                🤖 Analysing…
+              </>
+            ) : (
+              "Explain My Team"
+            )}
+          </button>
+
+          {explanation !== null && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "18px 20px",
+                background: "rgba(5,240,255,0.04)",
+                border: "1px solid rgba(5,240,255,0.18)",
+                borderRadius: 12,
+                borderLeft: "3px solid #05f0ff",
+                animation: "fadeUp 0.3s ease both",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 900,
+                  color: "rgba(5,240,255,0.5)",
+                  fontFamily: "'Barlow Condensed', monospace",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  marginBottom: 10,
+                }}
+              >
+                ✦ AI Explanation · LightGBM + ILP Reasoning
+              </div>
+              <p
+                style={{
+                  fontSize: 13.5,
+                  color: "rgba(255,255,255,0.82)",
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  lineHeight: 1.85,
+                  margin: 0,
+                }}
+              >
+                {explanation}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
