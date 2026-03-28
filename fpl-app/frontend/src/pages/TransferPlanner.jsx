@@ -19,6 +19,42 @@ export default function TransferPlanner() {
   const [explanation, setExplanation] = useState(null);
   const [explaining, setExplaining] = useState(false);
 
+  function fallbackTransfersExplanation(res) {
+    if (!res) return "AI explanation is unavailable right now.";
+
+    const outs = res.transfers_out ?? [];
+    const ins = res.transfers_in ?? [];
+    const outNames = outs.map((p) => p.web_name).filter(Boolean);
+    const inNames = ins.map((p) => p.web_name).filter(Boolean);
+
+    const outLine = outNames.length ? outNames.join(", ") : "no one";
+    const inLine = inNames.length ? inNames.join(", ") : "no one";
+
+    const outWorst = [...outs]
+      .filter((p) => typeof p.predicted_pts === "number")
+      .sort((a, b) => (a.predicted_pts ?? 0) - (b.predicted_pts ?? 0))[0];
+
+    const inBest = [...ins]
+      .filter((p) => typeof p.predicted_pts === "number")
+      .sort((a, b) => (b.predicted_pts ?? 0) - (a.predicted_pts ?? 0))[0];
+
+    const upgradeLine =
+      outWorst && inBest
+        ? `The biggest swing is swapping ${outWorst.web_name} for ${inBest.web_name}, where the model projects a clearer points edge this gameweek.`
+        : "The model is upgrading expected points by shifting budget into higher-projection players.";
+
+    const hitLine =
+      res.hits_taken > 0
+        ? `There’s a hit of ${res.points_hit} points, but the net gain is projected at ${res.net_pts_gain}, so the numbers justify being proactive.`
+        : `No hit is taken, keeping it a clean optimisation with a projected net gain of ${res.net_pts_gain}.`;
+
+    const captainLine = res.captain
+      ? `Captaincy moves to ${res.captain} to maximise upside, with ${res.vice_captain || "a vice"} as the safety net.`
+      : "Captaincy is set to maximise projected upside.";
+
+    return `AI credits are currently unavailable, so this is a summary from the transfer output. The plan sells ${outLine} and brings in ${inLine} because the incoming picks project better for points and role. ${upgradeLine} ${hitLine} ${captainLine}`;
+  }
+
   async function explainTransfers() {
     if (!result) return;
     setExplaining(true);
@@ -129,7 +165,12 @@ No bullet points. Plain paragraph(s) only.`;
       setExplanation((prev) => prev || "Could not generate explanation.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to generate explanation. Please try again.";
-      setExplanation(msg);
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("credit") || lower.includes("insufficient") || lower.includes("quota") || lower.includes("balance")) {
+        setExplanation(fallbackTransfersExplanation(result));
+      } else {
+        setExplanation(msg);
+      }
     } finally {
       setExplaining(false);
     }

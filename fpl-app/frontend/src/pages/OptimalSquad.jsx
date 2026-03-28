@@ -11,6 +11,55 @@ export default function OptimalSquad() {
   const [explanation, setExplanation] = useState(null);
   const [explaining, setExplaining] = useState(false);
 
+  function fallbackTeamExplanation(res) {
+    if (!res?.starters?.length) return "AI explanation is unavailable right now.";
+
+    const starters = res.starters;
+    const bench = res.bench ?? [];
+
+    const sortedByPrice = [...starters]
+      .filter((p) => typeof p.price === "number")
+      .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+
+    const sortedByPts = [...starters]
+      .filter((p) => typeof p.predicted_pts === "number")
+      .sort((a, b) => (b.predicted_pts ?? 0) - (a.predicted_pts ?? 0));
+
+    const premiumPicks = sortedByPrice.filter((p) => (p.price ?? 0) >= 10).slice(0, 3);
+    const valuePicks = [...starters]
+      .filter((p) => typeof p.price === "number" && (p.price ?? 0) <= 6.5)
+      .sort((a, b) => (b.predicted_pts ?? 0) - (a.predicted_pts ?? 0))
+      .slice(0, 3);
+
+    const posCounts = starters.reduce((acc, p) => {
+      acc[p.position] = (acc[p.position] || 0) + 1;
+      return acc;
+    }, {});
+    const formation = `${posCounts.DEF || 0}-${posCounts.MID || 0}-${posCounts.FWD || 0}`;
+
+    const captain = res.captain;
+    const vc = res.vice_captain;
+    const topScorer = sortedByPts[0]?.web_name;
+    const topScorerPts = sortedByPts[0]?.predicted_pts;
+    const premiumNames = premiumPicks.map((p) => p.web_name).filter(Boolean).join(", ");
+    const valueNames = valuePicks.map((p) => p.web_name).filter(Boolean).join(", ");
+    const benchNames = bench.map((p) => p.web_name).filter(Boolean).slice(0, 3).join(", ");
+    const benchNote = benchNames ? `The bench is set up as cover and budget control (${benchNames}).` : "The bench is set up as cover and budget control.";
+
+    const captainLine =
+      captain && topScorer
+        ? `Captaincy goes to ${captain} because the XI projection concentrates points at the top (top predicted scorer: ${topScorer} on ${topScorerPts}).`
+        : captain
+          ? `Captaincy goes to ${captain} to maximise projected points, with ${vc || "a vice-captain"} as cover.`
+          : "Captaincy is chosen to maximise projected points, with a vice-captain as cover.";
+
+    const premiumLine = premiumNames
+      ? `Up top, it balances premium output (${premiumNames}) with efficient value picks that keep the budget tight (${valueNames || "several low-cost enablers"}).`
+      : `It leans on value picks to maximise points per million (${valueNames || "several low-cost enablers"}).`;
+
+    return `AI credits are currently unavailable, so this is a model-based summary from the squad data. ${captainLine} ${premiumLine} Structurally it lands in a ${formation} shape to concentrate predicted points where the model sees the best fixtures and roles. ${benchNote} With £${res.budget_remaining}m left and ${res.predicted_points} projected points, it’s an aggressive “best XI first” build built for immediate returns.`;
+  }
+
   async function explainTeam() {
     if (!result) return;
     setExplaining(true);
@@ -129,7 +178,12 @@ No bullet points. Plain paragraph(s) only.`;
       setExplanation((prev) => prev || "Could not generate explanation.");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to generate explanation. Please try again.";
-      setExplanation(msg);
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("credit") || lower.includes("insufficient") || lower.includes("quota") || lower.includes("balance")) {
+        setExplanation(fallbackTeamExplanation(result));
+      } else {
+        setExplanation(msg);
+      }
     } finally {
       setExplaining(false);
     }

@@ -1,14 +1,19 @@
-export const config = { runtime: "edge" };
+export const config = { runtime: "nodejs" };
 
 export default async function handler(req) {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
   if (!apiKey) {
     return new Response(
-      JSON.stringify({ error: { message: "Missing ANTHROPIC_API_KEY" } }),
+      JSON.stringify({
+        error: {
+          message:
+            "Missing ANTHROPIC_API_KEY (server-side). Set it in Vercel and redeploy.",
+        },
+      }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
