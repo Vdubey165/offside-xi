@@ -431,34 +431,7 @@ No bullet points. Plain paragraph(s) only.`;
             </>
           )}
 
-          <button
-            onClick={explainTransfers}
-            disabled={explaining}
-            style={{
-              marginTop: 16,
-              background: "linear-gradient(135deg,#05f0ff,#0090ff)",
-              color: "#001a2e",
-              fontFamily: "'Barlow Condensed', sans-serif",
-              fontWeight: 900,
-              fontSize: 13,
-              padding: "10px 22px",
-              borderRadius: 8,
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            {explaining ? (
-              <>
-                <div className="spinner" style={{ width: 14, height: 14 }} />
-                🤖 Analysing…
-              </>
-            ) : (
-              "Explain My Transfers"
-            )}
-          </button>
+          
 
           {explanation !== null && (
             <div
