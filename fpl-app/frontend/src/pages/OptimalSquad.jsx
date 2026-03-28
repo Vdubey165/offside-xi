@@ -229,7 +229,134 @@ export default function OptimalSquad() {
     return `AI credits are currently unavailable, so this is a model-based summary from the squad data. ${captainLine} ${premiumLine} Structurally it lands in a ${formation} shape to concentrate predicted points where the model sees the best fixtures and roles. ${benchNote} With £${res.budget_remaining}m left and ${res.predicted_points} projected points, it’s an aggressive “best XI first” build built for immediate returns.`;
   }
 
+  async function explainTeam() {
+    if (!result) return;
+    setExplaining(true);
+    setExplanation(null);
+    try {
+      const starters = result.starters;
+      const bench = result.bench;
+      const prompt = `You are the AI engine behind Offside XI, an FPL decision tool.
+You just built this optimal squad using a LightGBM model (MAE 1.021, 34.7% better than
+baseline) and Integer Linear Programming with a £${result.total_cost}m budget.
 
+Starting XI:
+${starters
+  .map(
+    (p) =>
+      `- ${p.web_name} (${p.position}, ${p.team_name}, £${p.price?.toFixed(1)}m, predicted ${p.predicted_pts} pts)`
+  )
+  .join("\n")}
+
+Captain: ${result.captain} (2× points)
+Vice Captain: ${result.vice_captain}
+
+Bench:
+${bench
+  .map(
+    (p) =>
+      `- ${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, predicted ${p.predicted_pts} pts)`
+  )
+  .join("\n")}
+
+Budget remaining: £${result.budget_remaining}m
+Total predicted points (XI): ${result.predicted_points}
+
+Explain in 4–6 sentences why this squad was built. Be specific — mention actual player names.
+Cover: (1) why the captain was chosen, (2) the key premium picks vs value picks balance,
+(3) any notable position choices, (4) the bench strategy.
+Write in a confident, engaging tone — like a football analyst talking to a fan.
+No bullet points. Plain paragraph(s) only.`;
+
+      const response = await fetch("/api/anthropic", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 400,
+          stream: true,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        let msg = `Anthropic error (${response.status})`;
+        try {
+          const err = await response.json();
+          msg = err?.error?.message || msg;
+        } catch {
+        }
+        throw new Error(msg);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !response.body) {
+        const data = await response.json();
+        const text =
+          data.content?.map((b) => b.text || "").join("") || "Could not generate explanation.";
+        setExplanation(text);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        while (buffer.includes("\n\n")) {
+          const idx = buffer.indexOf("\n\n");
+          const chunk = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payloadStr = trimmed.slice(5).trim();
+            if (!payloadStr || payloadStr === "[DONE]") continue;
+
+            let payload;
+            try {
+              payload = JSON.parse(payloadStr);
+            } catch {
+              continue;
+            }
+
+            if (payload?.type === "error") {
+              throw new Error(payload?.error?.message || "Anthropic streaming error");
+            }
+
+            if (payload?.type === "content_block_delta" && payload?.delta?.type === "text_delta") {
+              const delta = payload.delta.text || "";
+              if (delta) setExplanation((prev) => (prev ?? "") + delta);
+            }
+
+            if (payload?.type === "content_block_start" && payload?.content_block?.type === "text") {
+              const startText = payload?.content_block?.text || "";
+              if (startText) setExplanation((prev) => (prev ?? "") + startText);
+            }
+          }
+        }
+      }
+
+      setExplanation((prev) => prev || "Could not generate explanation.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to generate explanation. Please try again.";
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("credit") || lower.includes("insufficient") || lower.includes("quota") || lower.includes("balance")) {
+        setExplanation(fallbackTeamExplanation(result));
+      } else {
+        setExplanation(msg);
+      }
+    } finally {
+      setExplaining(false);
+    }
+  }
 
   async function run() {
     setLoading(true); setError(null); setResult(null);
