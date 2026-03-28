@@ -42,6 +42,7 @@ export default function ModelInsights() {
 
   const maxImp = Math.max(...Object.values(data.feature_importances));
 
+  
   return (
     <div>
       <div className="page-header">
