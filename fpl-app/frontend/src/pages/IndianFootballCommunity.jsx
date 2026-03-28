@@ -265,6 +265,15 @@ function IslTopScorers() {
   const [loading,  setLoading]  = useState(true);
   const [liveData, setLiveData] = useState(false);
   const [selected, setSelected] = useState(null);
+  const [pinned, setPinned] = useState(null);
+
+  const togglePin = (scorer) => {
+    if (!scorer) return;
+    setPinned((prev) => {
+      if (prev && prev.player === scorer.player && prev.team === scorer.team) return null;
+      return scorer;
+    });
+  };
 
   useEffect(() => {
     api.getIslTopScorers()
@@ -365,7 +374,7 @@ function IslTopScorers() {
         </div>
       )}
 
-      <IslScorerPanel scorer={selected} onClose={() => setSelected(null)} />
+      <IslScorerPanel scorer={selected} pinned={pinned} onPinToggle={togglePin} onClose={() => setSelected(null)} />
     </div>
   );
 }
@@ -856,7 +865,7 @@ export default function IndianFootballCommunity() {
   );
 }
 
-function IslScorerPanel({ scorer, onClose }) {
+function IslScorerPanel({ scorer, pinned, onPinToggle, onClose }) {
   if (!scorer) return null;
 
   const name = scorer.player || "Player";
@@ -865,6 +874,12 @@ function IslScorerPanel({ scorer, onClose }) {
   const goals = scorer.goals ?? 0;
   const assists = scorer.assists ?? 0;
   const contributions = (Number(goals) || 0) + (Number(assists) || 0);
+
+  const isPinned = pinned && pinned.player === scorer.player && pinned.team === scorer.team;
+  const hasCompare = pinned && !isPinned;
+  const pinnedGoals = pinned?.goals ?? 0;
+  const pinnedAssists = pinned?.assists ?? 0;
+  const pinnedContrib = (Number(pinnedGoals) || 0) + (Number(pinnedAssists) || 0);
 
   return (
     <>
@@ -999,6 +1014,47 @@ function IslScorerPanel({ scorer, onClose }) {
                   </div>
                 </div>
               </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+                <button
+                  onClick={() => onPinToggle?.(scorer)}
+                  style={{
+                    background: isPinned ? "rgba(235,255,0,0.1)" : "rgba(5,240,255,0.08)",
+                    border: isPinned ? "1px solid rgba(235,255,0,0.22)" : "1px solid rgba(5,240,255,0.18)",
+                    color: isPinned ? "#ebff00" : "rgba(5,240,255,0.9)",
+                    fontFamily: "'Barlow Condensed', monospace",
+                    fontSize: 10,
+                    fontWeight: 900,
+                    letterSpacing: "0.12em",
+                    textTransform: "uppercase",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 7,
+                  }}
+                >
+                  {isPinned ? "Pinned" : "Pin to Compare"}
+                </button>
+                {pinned && (
+                  <div
+                    style={{
+                      fontSize: 9,
+                      color: "rgba(255,255,255,0.35)",
+                      fontFamily: "'Barlow Condensed', monospace",
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={pinned.player}
+                  >
+                    Compare vs {pinned.player}
+                  </div>
+                )}
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -1063,12 +1119,81 @@ function IslScorerPanel({ scorer, onClose }) {
             </div>
           </div>
 
+          {hasCompare && (
+            <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px" }}>
+              <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.18em", fontFamily: "'Barlow Condensed',monospace", marginBottom: 10 }}>
+                ✦ Compare
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ border: "1px solid rgba(5,240,255,0.12)", background: "rgba(5,240,255,0.04)", borderRadius: 10, padding: "12px" }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", textTransform: "uppercase", letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+                  <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ textAlign: "center", padding: "10px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#00ff87", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{goals}</div>
+                      <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Goals</div>
+                    </div>
+                    <div style={{ textAlign: "center", padding: "10px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#05f0ff", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{assists}</div>
+                      <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Assists</div>
+                    </div>
+                    <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "10px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#ebff00", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{contributions}</div>
+                      <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Contrib</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ border: "1px solid rgba(235,255,0,0.14)", background: "rgba(235,255,0,0.04)", borderRadius: 10, padding: "12px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 11.5, fontWeight: 800, color: "#fff", fontFamily: "'Barlow Condensed',sans-serif", textTransform: "uppercase", letterSpacing: "0.03em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pinned.player}</div>
+                      <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.38)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.06em", textTransform: "uppercase", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pinned.team}</div>
+                    </div>
+                    <button
+                      onClick={() => onPinToggle?.(pinned)}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid rgba(235,255,0,0.22)",
+                        color: "rgba(235,255,0,0.9)",
+                        fontFamily: "'Barlow Condensed', monospace",
+                        fontSize: 9.5,
+                        fontWeight: 900,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        borderRadius: 8,
+                        padding: "6px 9px",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                      }}
+                    >
+                      Unpin
+                    </button>
+                  </div>
+                  <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ textAlign: "center", padding: "10px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#00ff87", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{pinnedGoals}</div>
+                      <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Goals</div>
+                    </div>
+                    <div style={{ textAlign: "center", padding: "10px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#05f0ff", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{pinnedAssists}</div>
+                      <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Assists</div>
+                    </div>
+                    <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "10px 8px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.03)" }}>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: "#ebff00", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{pinnedContrib}</div>
+                      <div style={{ fontSize: 8.5, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Contrib</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px" }}>
             <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.18em", fontFamily: "'Barlow Condensed',monospace", marginBottom: 10 }}>
               ✦ Summary
             </div>
             <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.78)", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1.7 }}>
-              {name} has {goals} goals and {assists} assists this season ({contributions} total goal contributions) for {team}. Click any scorer in the list to compare quickly.
+              {name} has {goals} goals and {assists} assists this season ({contributions} total goal contributions) for {team}. Pin a player to compare side-by-side.
             </div>
           </div>
         </div>
