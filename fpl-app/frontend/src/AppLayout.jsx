@@ -133,19 +133,41 @@ function Topbar({ active, setActive, onAuthClick }) {
       {/* Right: GW info */}
       <div style={{display:"flex",alignItems:"center",gap:14,marginLeft:"auto",flexShrink:0}}>
         {/* Overall rank */}
-        <div className="topbar-rank" style={{textAlign:"right"}}>
-          <div style={{
-            fontSize:10,fontWeight:900,color:"rgba(255,255,255,0.8)",
-            fontFamily:"'Barlow Condensed',monospace",letterSpacing:"0.04em",lineHeight:1,
-          }}>
+        <div
+          className="topbar-rank"
+          style={{
+            textAlign: "right",
+            padding: "6px 10px",
+            borderRadius: 10,
+            background: "rgba(5,240,255,0.08)",
+            border: "1px solid rgba(5,240,255,0.18)",
+            boxShadow: "0 0 18px rgba(5,240,255,0.14)",
+            minWidth: 86,
+          }}
+        >
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 900,
+              color: "#05f0ff",
+              fontFamily: "'Barlow Condensed',monospace",
+              letterSpacing: "0.05em",
+              lineHeight: 1,
+            }}
+          >
             {rankLabel}
           </div>
-          <div style={{
-            fontSize:7.5,color:"rgba(255,255,255,0.28)",
-            fontFamily:"'Barlow Condensed',monospace",
-            textTransform:"uppercase",letterSpacing:"0.12em",marginTop:1,
-          }}>
-            O/all rank
+          <div
+            style={{
+              fontSize: 8.5,
+              color: "rgba(255,255,255,0.45)",
+              fontFamily: "'Barlow Condensed',monospace",
+              textTransform: "uppercase",
+              letterSpacing: "0.14em",
+              marginTop: 2,
+            }}
+          >
+            Overall Rank
           </div>
         </div>
 
