@@ -264,6 +264,7 @@ function IslTopScorers() {
   const [scorers,  setScorers]  = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [liveData, setLiveData] = useState(false);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     api.getIslTopScorers()
@@ -299,11 +300,12 @@ function IslTopScorers() {
             const isIndian = INDIAN_NATIONALITIES.has(p.nationality);
             const isFirst  = i === 0;
             return (
-              <div key={p.player || i} style={{
+              <div key={p.player || i} onClick={() => setSelected(p)} style={{
                 display: "flex", alignItems: "center", gap: 12,
                 padding: "9px 12px", borderRadius: "var(--radius)",
                 background: isFirst ? "rgba(235,255,0,0.05)" : "var(--bg3)",
                 border: `1px solid ${isFirst ? "rgba(235,255,0,0.15)" : "var(--border)"}`,
+                cursor: "pointer",
               }}>
                 {/* Rank */}
                 <span style={{
@@ -362,6 +364,8 @@ function IslTopScorers() {
           })}
         </div>
       )}
+
+      <IslScorerPanel scorer={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }
@@ -849,5 +853,231 @@ export default function IndianFootballCommunity() {
         </p>
       </div>
     </div>
+  );
+}
+
+function IslScorerPanel({ scorer, onClose }) {
+  if (!scorer) return null;
+
+  const name = scorer.player || "Player";
+  const team = scorer.team || "";
+  const nationality = scorer.nationality || "";
+  const goals = scorer.goals ?? 0;
+  const assists = scorer.assists ?? 0;
+  const contributions = (Number(goals) || 0) + (Number(assists) || 0);
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          zIndex: 100,
+          backdropFilter: "blur(2px)",
+          animation: "fadeIn 0.15s ease",
+        }}
+      />
+
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: Math.min(380, window.innerWidth),
+          background: "linear-gradient(180deg,#06101c 0%,#080f1a 100%)",
+          borderLeft: "1px solid rgba(5,240,255,0.12)",
+          zIndex: 101,
+          overflowY: "auto",
+          overflowX: "hidden",
+          scrollbarWidth: "none",
+          animation: "slideIn 0.22s cubic-bezier(0.22,1,0.36,1)",
+          boxShadow: "-20px 0 60px rgba(0,0,0,0.6)",
+        }}
+      >
+        <div
+          style={{
+            padding: "18px 18px 16px",
+            background: "linear-gradient(135deg,#06101c,#0a1a2e)",
+            borderBottom: "1px solid rgba(5,240,255,0.08)",
+            position: "sticky",
+            top: 0,
+            zIndex: 10,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {scorer.photo ? (
+                  <img
+                    src={scorer.photo}
+                    alt={name}
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      flexShrink: 0,
+                      border: "1.5px solid rgba(5,240,255,0.15)",
+                    }}
+                    onError={(e) => {
+                      e.target.style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 46,
+                      height: 46,
+                      borderRadius: "50%",
+                      background: "rgba(5,240,255,0.08)",
+                      border: "1px solid rgba(5,240,255,0.12)",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 900,
+                      color: "#fff",
+                      lineHeight: 1.05,
+                      fontFamily: "'Barlow Condensed',sans-serif",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.02em",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {name}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                    {scorer.logo && (
+                      <img
+                        src={scorer.logo}
+                        alt=""
+                        style={{ width: 14, height: 14, objectFit: "contain" }}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                        }}
+                      />
+                    )}
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: "rgba(255,255,255,0.45)",
+                        fontFamily: "'Barlow Condensed',monospace",
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {team}
+                    </span>
+                    {nationality && (
+                      <>
+                        <span style={{ width: 1, height: 10, background: "rgba(255,255,255,0.15)" }} />
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: "rgba(255,255,255,0.35)",
+                            fontFamily: "'Barlow Condensed',monospace",
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {nationality}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "rgba(255,255,255,0.6)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 16,
+                flexShrink: 0,
+                marginLeft: 12,
+                transition: "all 0.12s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,77,77,0.15)";
+                e.currentTarget.style.color = "#ff4d4d";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.05)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.6)";
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 900,
+                color: "rgba(5,240,255,0.5)",
+                textTransform: "uppercase",
+                letterSpacing: "0.18em",
+                fontFamily: "'Barlow Condensed',monospace",
+                marginBottom: 10,
+              }}
+            >
+              ✦ ISL Scoring Stats
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#ebff00", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{scorer.rank ?? "—"}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Rank</div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#00ff87", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{goals}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Goals</div>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 8, padding: "10px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: "#05f0ff", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1 }}>{assists}</div>
+                <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'Barlow Condensed',monospace", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>Assists</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 10, padding: "14px" }}>
+            <div style={{ fontSize: 9, fontWeight: 900, color: "rgba(5,240,255,0.5)", textTransform: "uppercase", letterSpacing: "0.18em", fontFamily: "'Barlow Condensed',monospace", marginBottom: 10 }}>
+              ✦ Summary
+            </div>
+            <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.78)", fontFamily: "'Barlow Condensed',sans-serif", lineHeight: 1.7 }}>
+              {name} has {goals} goals and {assists} assists this season ({contributions} total goal contributions) for {team}. Click any scorer in the list to compare quickly.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes slideIn { from{transform:translateX(100%);opacity:0} to{transform:translateX(0);opacity:1} }
+        @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
+      `}</style>
+    </>
   );
 }
