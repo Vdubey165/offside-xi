@@ -13,12 +13,6 @@ export default function OptimalSquad() {
 
   async function explainTeam() {
     if (!result) return;
-    const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      setExplanation("Missing VITE_ANTHROPIC_API_KEY. Add it to your frontend environment and reload.");
-      return;
-    }
-
     setExplaining(true);
     setExplanation(null);
     try {
@@ -56,12 +50,10 @@ Cover: (1) why the captain was chosen, (2) the key premium picks vs value picks 
 Write in a confident, engaging tone — like a football analyst talking to a fan.
 No bullet points. Plain paragraph(s) only.`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
+      const response = await fetch("/api/anthropic", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
@@ -135,8 +127,9 @@ No bullet points. Plain paragraph(s) only.`;
       }
 
       setExplanation((prev) => prev || "Could not generate explanation.");
-    } catch {
-      setExplanation("Failed to generate explanation. Please try again.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to generate explanation. Please try again.";
+      setExplanation(msg);
     } finally {
       setExplaining(false);
     }
