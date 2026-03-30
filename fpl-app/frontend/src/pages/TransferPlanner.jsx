@@ -2,9 +2,8 @@ import { useState, useEffect } from "react";
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth.jsx";
 
-const LockIcon   = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-const UnlockIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>;
-const CloseIcon  = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const LockIcon  = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+const CloseIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 
 export default function TransferPlanner() {
   const { user } = useAuth();
@@ -16,165 +15,6 @@ export default function TransferPlanner() {
   const [loadingSquad, setLoadingSquad] = useState(false);
   const [loadingOpt,   setLoadingOpt]   = useState(false);
   const [error,        setError]        = useState(null);
-  const [explanation, setExplanation] = useState(null);
-  const [explaining, setExplaining] = useState(false);
-
-  function fallbackTransfersExplanation(res) {
-    if (!res) return "AI explanation is unavailable right now.";
-
-    const outs = res.transfers_out ?? [];
-    const ins = res.transfers_in ?? [];
-    const outNames = outs.map((p) => p.web_name).filter(Boolean);
-    const inNames = ins.map((p) => p.web_name).filter(Boolean);
-
-    const outLine = outNames.length ? outNames.join(", ") : "no one";
-    const inLine = inNames.length ? inNames.join(", ") : "no one";
-
-    const outWorst = [...outs]
-      .filter((p) => typeof p.predicted_pts === "number")
-      .sort((a, b) => (a.predicted_pts ?? 0) - (b.predicted_pts ?? 0))[0];
-
-    const inBest = [...ins]
-      .filter((p) => typeof p.predicted_pts === "number")
-      .sort((a, b) => (b.predicted_pts ?? 0) - (a.predicted_pts ?? 0))[0];
-
-    const upgradeLine =
-      outWorst && inBest
-        ? `The biggest swing is swapping ${outWorst.web_name} for ${inBest.web_name}, where the model projects a clearer points edge this gameweek.`
-        : "The model is upgrading expected points by shifting budget into higher-projection players.";
-
-    const hitLine =
-      res.hits_taken > 0
-        ? `There’s a hit of ${res.points_hit} points, but the net gain is projected at ${res.net_pts_gain}, so the numbers justify being proactive.`
-        : `No hit is taken, keeping it a clean optimisation with a projected net gain of ${res.net_pts_gain}.`;
-
-    const captainLine = res.captain
-      ? `Captaincy moves to ${res.captain} to maximise upside, with ${res.vice_captain || "a vice"} as the safety net.`
-      : "Captaincy is set to maximise projected upside.";
-
-    return `AI credits are currently unavailable, so this is a summary from the transfer output. The plan sells ${outLine} and brings in ${inLine} because the incoming picks project better for points and role. ${upgradeLine} ${hitLine} ${captainLine}`;
-  }
-
-  async function explainTransfers() {
-    if (!result) return;
-    setExplaining(true);
-    setExplanation(null);
-    try {
-      const outList = (result.transfers_out || [])
-        .map((p) => `${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, pred ${p.predicted_pts} pts)`)
-        .join(", ");
-      const inList = (result.transfers_in || [])
-        .map((p) => `${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, pred ${p.predicted_pts} pts)`)
-        .join(", ");
-
-      const prompt = `You are the AI engine behind Offside XI, an FPL decision tool.
-You just optimised this manager's transfers using a LightGBM model + hit-aware ILP.
-
-Transfers OUT: ${outList || "None"}
-Transfers IN:  ${inList || "None"}
-Transfers made: ${result.transfers_made}
-Hits taken: ${result.hits_taken} (${result.points_hit} pts penalty)
-Net predicted points gain: ${result.net_pts_gain}
-New captain: ${result.captain}
-New vice captain: ${result.vice_captain}
-Gameweek: ${result.gameweek}
-Budget in bank: £${result.itb}m
-
-Explain in 4–5 sentences why these transfers were recommended. Be specific — use player names.
-Cover: (1) why each player was sold and what made the replacements better, (2) whether the
-hit (if any) is justified by the predicted gain, (3) the new captain logic.
-Write confidently, like an analyst briefing a manager before deadline day.
-No bullet points. Plain paragraph(s) only.`;
-
-      const response = await fetch("/api/anthropic", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 400,
-          stream: true,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      if (!response.ok) {
-        let msg = `Anthropic error (${response.status})`;
-        try {
-          const err = await response.json();
-          msg = err?.error?.message || msg;
-        } catch {
-        }
-        throw new Error(msg);
-      }
-
-      const contentType = response.headers.get("content-type") || "";
-      if (!contentType.includes("text/event-stream") || !response.body) {
-        const data = await response.json();
-        const text =
-          data.content?.map((b) => b.text || "").join("") || "Could not generate explanation.";
-        setExplanation(text);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        while (buffer.includes("\n\n")) {
-          const idx = buffer.indexOf("\n\n");
-          const chunk = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 2);
-
-          for (const line of chunk.split("\n")) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data:")) continue;
-            const payloadStr = trimmed.slice(5).trim();
-            if (!payloadStr || payloadStr === "[DONE]") continue;
-
-            let payload;
-            try {
-              payload = JSON.parse(payloadStr);
-            } catch {
-              continue;
-            }
-
-            if (payload?.type === "error") {
-              throw new Error(payload?.error?.message || "Anthropic streaming error");
-            }
-
-            if (payload?.type === "content_block_delta" && payload?.delta?.type === "text_delta") {
-              const delta = payload.delta.text || "";
-              if (delta) setExplanation((prev) => (prev ?? "") + delta);
-            }
-
-            if (payload?.type === "content_block_start" && payload?.content_block?.type === "text") {
-              const startText = payload?.content_block?.text || "";
-              if (startText) setExplanation((prev) => (prev ?? "") + startText);
-            }
-          }
-        }
-      }
-
-      setExplanation((prev) => prev || "Could not generate explanation.");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to generate explanation. Please try again.";
-      const lower = String(msg).toLowerCase();
-      if (lower.includes("credit") || lower.includes("insufficient") || lower.includes("quota") || lower.includes("balance")) {
-        setExplanation(fallbackTransfersExplanation(result));
-      } else {
-        setExplanation(msg);
-      }
-    } finally {
-      setExplaining(false);
-    }
-  }
 
   // Auto-fill Team ID when user logs in
   useEffect(() => {
@@ -194,7 +34,6 @@ No bullet points. Plain paragraph(s) only.`;
   async function fetchSquad() {
     if (!teamId) return;
     setLoadingSquad(true); setError(null); setSquadData(null); setResult(null); setLocked([]);
-    setExplanation(null); setExplaining(false);
     try {
       const data = await api.fetchSquad(teamId);
       setSquadData(data); setFreeTf(data.free_transfers);
@@ -204,7 +43,6 @@ No bullet points. Plain paragraph(s) only.`;
 
   async function optimize() {
     setLoadingOpt(true); setError(null); setResult(null);
-    setExplanation(null); setExplaining(false);
     try {
       setResult(await api.optimizeTransfers({ team_id: parseInt(teamId), free_transfers: freeTf, hit_cost: 4, locked_players: locked }));
     } catch (e) { setError(e.message); }
@@ -231,7 +69,7 @@ No bullet points. Plain paragraph(s) only.`;
           </div>
           <div style={{ fontSize: 12, color: "var(--text3)", marginBottom: 12, lineHeight: 1.6 }}>
             Find your Team ID in the FPL URL:{" "}
-            <span style={{ fontFamily: "'Geist Mono', monospace", color: "var(--blue)", fontSize: 11.5 }}>
+            <span style={{ fontFamily: "'Barlow Condensed', monospace", color: "var(--blue)", fontSize: 11.5 }}>
               fantasy.premierleague.com/entry/<strong style={{color:"var(--text)"}}>123456</strong>/event/…
             </span>
           </div>
@@ -256,10 +94,10 @@ No bullet points. Plain paragraph(s) only.`;
             <div style={{ marginTop: 16 }}>
               <div style={{ display: "flex", gap: 16, marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid var(--border)" }}>
                 <span style={{ fontSize: 11.5, color: "var(--text3)" }}>GW <span style={{color:"var(--text)", fontWeight:600}}>{squadData.gameweek}</span></span>
-                <span style={{ fontSize: 11.5, color: "var(--text3)" }}>ITB <span style={{color:"var(--amber)", fontFamily:"'Geist Mono',monospace"}}>£{squadData.itb}m</span></span>
+                <span style={{ fontSize: 11.5, color: "var(--text3)" }}>ITB <span style={{color:"var(--amber)", fontFamily:"'Barlow Condensed',monospace"}}>£{squadData.itb}m</span></span>
                 <span style={{ fontSize: 11.5, color: "var(--text3)" }}>Free transfers <span style={{color:"var(--accent)", fontWeight:600}}>{squadData.free_transfers}</span></span>
               </div>
-              <div style={{ fontSize: 10.5, color: "var(--text3)", marginBottom: 8, fontFamily: "'Geist Mono', monospace" }}>
+              <div style={{ fontSize: 10.5, color: "var(--text3)", marginBottom: 8, fontFamily: "'Barlow Condensed', monospace" }}>
                 Click to lock / unlock a player
               </div>
               <div className="squad-list">
@@ -308,7 +146,7 @@ No bullet points. Plain paragraph(s) only.`;
           <div className="input-group">
             <label className="input-label">Hit Penalty</label>
             <div style={{ marginTop: 4, fontSize: 13, color: "var(--text2)" }}>
-              <span style={{ fontFamily: "'Geist Mono', monospace", color: "var(--red)" }}>−4 pts</span> per extra transfer
+              <span style={{ fontFamily: "'Barlow Condensed', monospace", color: "var(--red)" }}>−4 pts</span> per extra transfer
               <span style={{ fontSize: 11, color: "var(--text3)", display: "block", marginTop: 3 }}>Standard FPL rules</span>
             </div>
           </div>
@@ -384,7 +222,7 @@ No bullet points. Plain paragraph(s) only.`;
                         <span className="player-name">{p.web_name}</span>
                         <span className="player-team">{p.team_name}</span>
                         <span className="price">£{p.price?.toFixed(1)}m</span>
-                        <span style={{ fontFamily: "'Geist Mono', monospace", fontSize: 12, color: "var(--red)" }}>{p.predicted_pts}</span>
+                        <span style={{ fontFamily: "'Barlow Condensed', monospace", fontSize: 12, color: "var(--red)" }}>{p.predicted_pts}</span>
                       </div>
                     ))}
                   </div>
@@ -429,47 +267,6 @@ No bullet points. Plain paragraph(s) only.`;
                 </div>
               </div>
             </>
-          )}
-
-          
-
-          {explanation !== null && (
-            <div
-              style={{
-                marginTop: 16,
-                padding: "18px 20px",
-                background: "rgba(5,240,255,0.04)",
-                border: "1px solid rgba(5,240,255,0.18)",
-                borderRadius: 12,
-                borderLeft: "3px solid #05f0ff",
-                animation: "fadeUp 0.3s ease both",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 9,
-                  fontWeight: 900,
-                  color: "rgba(5,240,255,0.5)",
-                  fontFamily: "'Barlow Condensed', monospace",
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  marginBottom: 10,
-                }}
-              >
-                ✦ AI Explanation · LightGBM + ILP Reasoning
-              </div>
-              <p
-                style={{
-                  fontSize: 13.5,
-                  color: "rgba(255,255,255,0.82)",
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  lineHeight: 1.85,
-                  margin: 0,
-                }}
-              >
-                {explanation}
-              </p>
-            </div>
           )}
         </div>
       )}
