@@ -3,11 +3,12 @@ import { api } from "../api/client";
 
 const POS_ORDER = ["GK", "DEF", "MID", "FWD"];
 
-// ── Rule-based Team Analysis ──────────────────────────────────────────────────
+// ── Rule-based Team Analysis (no API calls) ───────────────────────────────────
 function generateTeamAnalysis(result) {
   const starters = result?.starters ?? [];
   const bench    = result?.bench    ?? [];
 
+  // 1. Premium vs value counts
   const premiumPlayers = starters.filter((p) => (p.price ?? 0) >= 9);
   const valuePlayers   = starters.filter((p) => (p.price ?? 0) <= 6);
   const premiumCount   = premiumPlayers.length;
@@ -18,6 +19,7 @@ function generateTeamAnalysis(result) {
     premiumCount >= 2 ? "balanced" :
     "budget-focused (value-heavy)";
 
+  // 2. Formation / position counts in starting XI
   const posCounts = starters.reduce((acc, p) => {
     acc[p.position] = (acc[p.position] || 0) + 1;
     return acc;
@@ -33,19 +35,23 @@ function generateTeamAnalysis(result) {
 
   const formation = `${defCount}-${midCount}-${fwdCount}`;
 
-  const captainName   = result?.captain ?? "the captain";
+  // 3. Captain logic
+  const captainName = result?.captain ?? "the captain";
   const captainPlayer = starters.find((p) => p.web_name === captainName);
   const captainPts    = captainPlayer?.predicted_pts ?? "—";
 
+  // 4. Top value pick (best pts/price ratio among value players)
   const bestValue = valuePlayers
     .filter((p) => p.price > 0)
     .sort((a, b) => (b.predicted_pts / b.price) - (a.predicted_pts / a.price))[0];
 
-  const benchGK   = bench.find((p) => p.position === "GK");
+  // 5. Bench depth note
+  const benchGK  = bench.find((p) => p.position === "GK");
   const benchNote = benchGK
     ? `The bench is anchored by a budget GK (${benchGK.web_name}) to free up funds for outfield quality.`
     : "The bench provides positional cover across all outfield roles.";
 
+  // Build sentences
   const s1 = `This ${formation} squad takes a ${squadStyle} approach, featuring ${premiumCount} premium player${premiumCount !== 1 ? "s" : ""} (£9m+) and ${valueCount} budget pick${valueCount !== 1 ? "s" : ""} (£6m or under) in the starting XI.`;
 
   const s2 = `The ${dominantPos} is prioritised with ${dominantPos === "midfield" ? midCount : dominantPos === "attack" ? fwdCount : defCount} players in that area, reflecting the ILP optimiser's search for maximum point-scoring potential in the current gameweek.`;
@@ -76,32 +82,49 @@ function TeamAnalysis({ result }) {
         animation: "fadeUp 0.35s ease both",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
         <div
           style={{
-            width: 26, height: 26, borderRadius: "50%",
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
             background: "rgba(0,255,135,0.15)",
             border: "1px solid rgba(0,255,135,0.3)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 13, flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 13,
+            flexShrink: 0,
           }}
         >
           📊
         </div>
-        <div
-          style={{
-            fontSize: 9, fontWeight: 900,
-            color: "rgba(0,255,135,0.6)",
-            fontFamily: "'Barlow Condensed', monospace",
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            lineHeight: 1,
-          }}
-        >
-          ✦ Team Analysis · Rule-Based Breakdown
+        <div>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 900,
+              color: "rgba(0,255,135,0.6)",
+              fontFamily: "'Barlow Condensed', monospace",
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              lineHeight: 1,
+            }}
+          >
+            ✦ Team Analysis · Rule-Based Breakdown
+          </div>
         </div>
       </div>
 
+      {/* Stat chips */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
         {[
           { label: "Formation",  value: (() => { const d = result.starters.filter(p=>p.position==="DEF").length; const m = result.starters.filter(p=>p.position==="MID").length; const f = result.starters.filter(p=>p.position==="FWD").length; return `${d}-${m}-${f}`; })() },
@@ -118,7 +141,9 @@ function TeamAnalysis({ result }) {
               background: "rgba(0,255,135,0.08)",
               border: "1px solid rgba(0,255,135,0.15)",
               borderRadius: 6,
-              display: "flex", alignItems: "center", gap: 5,
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
             }}
           >
             <span style={{ fontSize: 9, fontWeight: 900, color: "rgba(0,255,135,0.5)", fontFamily: "'Barlow Condensed', monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>
@@ -131,6 +156,7 @@ function TeamAnalysis({ result }) {
         ))}
       </div>
 
+      {/* Analysis text */}
       <p
         style={{
           fontSize: 13.5,
@@ -151,9 +177,190 @@ export default function OptimalSquad() {
   const [result,  setResult]  = useState(null);
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
+  const [explanation, setExplanation] = useState(null);
+  const [explaining, setExplaining] = useState(false);
+
+  function fallbackTeamExplanation(res) {
+    if (!res?.starters?.length) return "AI explanation is unavailable right now.";
+
+    const starters = res.starters;
+    const bench = res.bench ?? [];
+
+    const sortedByPrice = [...starters]
+      .filter((p) => typeof p.price === "number")
+      .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+
+    const sortedByPts = [...starters]
+      .filter((p) => typeof p.predicted_pts === "number")
+      .sort((a, b) => (b.predicted_pts ?? 0) - (a.predicted_pts ?? 0));
+
+    const premiumPicks = sortedByPrice.filter((p) => (p.price ?? 0) >= 10).slice(0, 3);
+    const valuePicks = [...starters]
+      .filter((p) => typeof p.price === "number" && (p.price ?? 0) <= 6.5)
+      .sort((a, b) => (b.predicted_pts ?? 0) - (a.predicted_pts ?? 0))
+      .slice(0, 3);
+
+    const posCounts = starters.reduce((acc, p) => {
+      acc[p.position] = (acc[p.position] || 0) + 1;
+      return acc;
+    }, {});
+    const formation = `${posCounts.DEF || 0}-${posCounts.MID || 0}-${posCounts.FWD || 0}`;
+
+    const captain = res.captain;
+    const vc = res.vice_captain;
+    const topScorer = sortedByPts[0]?.web_name;
+    const topScorerPts = sortedByPts[0]?.predicted_pts;
+    const premiumNames = premiumPicks.map((p) => p.web_name).filter(Boolean).join(", ");
+    const valueNames = valuePicks.map((p) => p.web_name).filter(Boolean).join(", ");
+    const benchNames = bench.map((p) => p.web_name).filter(Boolean).slice(0, 3).join(", ");
+    const benchNote = benchNames ? `The bench is set up as cover and budget control (${benchNames}).` : "The bench is set up as cover and budget control.";
+
+    const captainLine =
+      captain && topScorer
+        ? `Captaincy goes to ${captain} because the XI projection concentrates points at the top (top predicted scorer: ${topScorer} on ${topScorerPts}).`
+        : captain
+          ? `Captaincy goes to ${captain} to maximise projected points, with ${vc || "a vice-captain"} as cover.`
+          : "Captaincy is chosen to maximise projected points, with a vice-captain as cover.";
+
+    const premiumLine = premiumNames
+      ? `Up top, it balances premium output (${premiumNames}) with efficient value picks that keep the budget tight (${valueNames || "several low-cost enablers"}).`
+      : `It leans on value picks to maximise points per million (${valueNames || "several low-cost enablers"}).`;
+
+    return `AI credits are currently unavailable, so this is a model-based summary from the squad data. ${captainLine} ${premiumLine} Structurally it lands in a ${formation} shape to concentrate predicted points where the model sees the best fixtures and roles. ${benchNote} With £${res.budget_remaining}m left and ${res.predicted_points} projected points, it’s an aggressive “best XI first” build built for immediate returns.`;
+  }
+
+  async function explainTeam() {
+    if (!result) return;
+    setExplaining(true);
+    setExplanation(null);
+    try {
+      const starters = result.starters;
+      const bench = result.bench;
+      const prompt = `You are the AI engine behind Offside XI, an FPL decision tool.
+You just built this optimal squad using a LightGBM model (MAE 1.021, 34.7% better than
+baseline) and Integer Linear Programming with a £${result.total_cost}m budget.
+
+Starting XI:
+${starters
+  .map(
+    (p) =>
+      `- ${p.web_name} (${p.position}, ${p.team_name}, £${p.price?.toFixed(1)}m, predicted ${p.predicted_pts} pts)`
+  )
+  .join("\n")}
+
+Captain: ${result.captain} (2× points)
+Vice Captain: ${result.vice_captain}
+
+Bench:
+${bench
+  .map(
+    (p) =>
+      `- ${p.web_name} (${p.position}, £${p.price?.toFixed(1)}m, predicted ${p.predicted_pts} pts)`
+  )
+  .join("\n")}
+
+Budget remaining: £${result.budget_remaining}m
+Total predicted points (XI): ${result.predicted_points}
+
+Explain in 4–6 sentences why this squad was built. Be specific — mention actual player names.
+Cover: (1) why the captain was chosen, (2) the key premium picks vs value picks balance,
+(3) any notable position choices, (4) the bench strategy.
+Write in a confident, engaging tone — like a football analyst talking to a fan.
+No bullet points. Plain paragraph(s) only.`;
+
+      const response = await fetch("/api/anthropic", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 400,
+          stream: true,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        let msg = `Anthropic error (${response.status})`;
+        try {
+          const err = await response.json();
+          msg = err?.error?.message || msg;
+        } catch {
+        }
+        throw new Error(msg);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("text/event-stream") || !response.body) {
+        const data = await response.json();
+        const text =
+          data.content?.map((b) => b.text || "").join("") || "Could not generate explanation.";
+        setExplanation(text);
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        while (buffer.includes("\n\n")) {
+          const idx = buffer.indexOf("\n\n");
+          const chunk = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+
+          for (const line of chunk.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const payloadStr = trimmed.slice(5).trim();
+            if (!payloadStr || payloadStr === "[DONE]") continue;
+
+            let payload;
+            try {
+              payload = JSON.parse(payloadStr);
+            } catch {
+              continue;
+            }
+
+            if (payload?.type === "error") {
+              throw new Error(payload?.error?.message || "Anthropic streaming error");
+            }
+
+            if (payload?.type === "content_block_delta" && payload?.delta?.type === "text_delta") {
+              const delta = payload.delta.text || "";
+              if (delta) setExplanation((prev) => (prev ?? "") + delta);
+            }
+
+            if (payload?.type === "content_block_start" && payload?.content_block?.type === "text") {
+              const startText = payload?.content_block?.text || "";
+              if (startText) setExplanation((prev) => (prev ?? "") + startText);
+            }
+          }
+        }
+      }
+
+      setExplanation((prev) => prev || "Could not generate explanation.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to generate explanation. Please try again.";
+      const lower = String(msg).toLowerCase();
+      if (lower.includes("credit") || lower.includes("insufficient") || lower.includes("quota") || lower.includes("balance")) {
+        setExplanation(fallbackTeamExplanation(result));
+      } else {
+        setExplanation(msg);
+      }
+    } finally {
+      setExplaining(false);
+    }
+  }
 
   async function run() {
     setLoading(true); setError(null); setResult(null);
+    setExplanation(null); setExplaining(false);
     try { setResult(await api.optimizeSquad(budget)); }
     catch (e) { setError(e.message); }
     finally { setLoading(false); }
@@ -178,7 +385,7 @@ export default function OptimalSquad() {
             <div className="range-wrap" style={{ marginTop: 4 }}>
               <input type="range" min={80} max={100} step={0.5} value={budget}
                 onChange={(e) => setBudget(parseFloat(e.target.value))} style={{ flex: 1 }} />
-              <span className="range-val" style={{ color: "var(--accent)", fontFamily: "'Barlow Condensed', sans-serif", fontSize: 18, fontWeight: 700 }}>£{budget}m</span>
+              <span className="range-val" style={{ color: "var(--accent)", fontFamily: "'Syne', sans-serif", fontSize: 18, fontWeight: 700 }}>£{budget}m</span>
             </div>
           </div>
           <button className="btn btn-primary" onClick={run} disabled={loading} style={{ minWidth: 150 }}>
@@ -263,6 +470,47 @@ export default function OptimalSquad() {
           </div>
 
           <TeamAnalysis result={result} />
+
+          
+
+          {explanation !== null && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: "18px 20px",
+                background: "rgba(5,240,255,0.04)",
+                border: "1px solid rgba(5,240,255,0.18)",
+                borderRadius: 12,
+                borderLeft: "3px solid #05f0ff",
+                animation: "fadeUp 0.3s ease both",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 9,
+                  fontWeight: 900,
+                  color: "rgba(5,240,255,0.5)",
+                  fontFamily: "'Barlow Condensed', monospace",
+                  letterSpacing: "0.18em",
+                  textTransform: "uppercase",
+                  marginBottom: 10,
+                }}
+              >
+                ✦ AI Explanation · LightGBM + ILP Reasoning
+              </div>
+              <p
+                style={{
+                  fontSize: 13.5,
+                  color: "rgba(255,255,255,0.82)",
+                  fontFamily: "'Barlow Condensed', sans-serif",
+                  lineHeight: 1.85,
+                  margin: 0,
+                }}
+              >
+                {explanation}
+              </p>
+            </div>
+          )}
         </div>
       )}
 

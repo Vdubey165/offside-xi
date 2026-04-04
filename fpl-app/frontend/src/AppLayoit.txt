@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useGameweek } from "./hooks/useGameweek";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import AuthModal from "./components/AuthModal";
-import { prefetchSnapshot } from "./utils/squadPrefetch"; // NEW
 
 // ─── REAL COMPONENT IMPORTS ───────────────────────────────────────────────────
 import SidebarLeft     from "./components/SidebarLeft";
@@ -278,16 +277,6 @@ function AppLayoutInner() {
   const [activePage,  setActivePage]  = useState("home");
   const [activeTeam,  setActiveTeam]  = useState(null);
   const [showAuth,    setShowAuth]    = useState(false);
-
-  // ── NEW: prefetch snapshot the moment gw is known ──────────────────────────
-  // This fires the POST /api/squad/snapshot/{gw} immediately on app load,
-  // even before the user navigates to "My Squad". By the time they click it,
-  // the snapshot Promise is already resolved (or nearly so).
-  const { gw } = useGameweek();
-  useEffect(() => {
-    if (gw) prefetchSnapshot(gw);
-  }, [gw]);
-  // ──────────────────────────────────────────────────────────────────────────
 
   const ActivePage = NAV.find(n=>n.id===activePage)?.component || null;
 
@@ -635,6 +624,7 @@ function AppLayoutInner() {
         .empty-icon { font-size:28px; color:rgba(5,240,255,0.15); }
         .empty-msg  { font-size:11px; color:var(--text3); font-family:var(--mono); letter-spacing:0.1em; text-transform:uppercase; }
 
+        /* FIX: step-num border-radius was a JS string typo in original — corrected here */
         .step-num {
           display:flex; align-items:center; justify-content:center;
           width:22px; height:22px; border-radius:50%;

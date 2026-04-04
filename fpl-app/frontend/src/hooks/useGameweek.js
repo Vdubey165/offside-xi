@@ -1,52 +1,106 @@
 /**
- * useGameweek — fetches the real current GW from the FPL API via our backend.
- * Returns { gw, loading, deadlineTime, gwFinished }
+ * useGameweek — fetches current GW from backend, with localStorage cache (30-min TTL).
+ *
+ * FIX: On return visits, GW is read from localStorage instantly (0ms) so the
+ * entire downstream chain (snapshot fetch, challenge state) starts immediately
+ * without waiting for the backend round-trip.
+ *
+ * Background fetch still runs to verify/refresh the cached value silently.
  */
 import { useState, useEffect } from "react";
 
-const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
+const BASE        = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
+const LS_KEY      = "offside_gw_cache";
+const TTL_MS      = 30 * 60 * 1000; // 30 minutes
 
-let _cache = null; // module-level cache so we only fetch once per session
+// Module-level in-memory cache — dedupes fetches within the same session
+let _memCache = null;
+
+function readLocalStorage() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.cachedAt > TTL_MS) return null; // stale
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+}
+
+function writeLocalStorage(data) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...data, cachedAt: Date.now() }));
+  } catch (_) {}
+}
 
 export function useGameweek() {
-  const [gw,           setGw]           = useState(_cache?.gw           || null);
-  const [loading,      setLoading]      = useState(!_cache);
-  const [deadlineTime, setDeadlineTime] = useState(_cache?.deadlineTime  || null); // ISO string
-  const [gwFinished,   setGwFinished]   = useState(_cache?.gwFinished    || false);
+  // Seed state immediately from localStorage — no loading flash on return visits
+  const initialCache = _memCache || readLocalStorage();
+
+  const [gw,           setGw]           = useState(initialCache?.gw           || null);
+  const [loading,      setLoading]      = useState(!initialCache);
+  const [deadlineTime, setDeadlineTime] = useState(initialCache?.deadlineTime  || null);
+  const [gwFinished,   setGwFinished]   = useState(initialCache?.gwFinished    || false);
 
   useEffect(() => {
-    if (_cache) {
-      setGw(_cache.gw);
-      setDeadlineTime(_cache.deadlineTime);
-      setGwFinished(_cache.gwFinished);
+    // If we already have in-memory cache, just sync state and stop
+    if (_memCache) {
+      setGw(_memCache.gw);
+      setDeadlineTime(_memCache.deadlineTime);
+      setGwFinished(_memCache.gwFinished);
       setLoading(false);
       return;
     }
 
-    let cancelled = false;
-    async function fetchGW() {
-      try {
-        const res  = await fetch(`${BASE}/current-gw`, { signal: AbortSignal.timeout(5000) });
-        const data = await res.json();
-        if (!cancelled && data.gameweek) {
-          _cache = {
-            gw:           data.gameweek,
-            deadlineTime: data.deadline_time || null,
-            gwFinished:   data.gw_finished   || false,
-          };
-          setGw(_cache.gw);
-          setDeadlineTime(_cache.deadlineTime);
-          setGwFinished(_cache.gwFinished);
-        }
-      } catch (_) {
-        // Backend unreachable — leave null
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    // If localStorage had a valid cache, apply it now (instant) then
+    // background-fetch to check if GW changed
+    const lsCache = readLocalStorage();
+    if (lsCache) {
+      _memCache = lsCache;
+      setGw(lsCache.gw);
+      setDeadlineTime(lsCache.deadlineTime);
+      setGwFinished(lsCache.gwFinished);
+      setLoading(false);
+      // Still fetch in background to refresh — but don't block UI
+      fetchAndUpdate(false);
+      return;
     }
-    fetchGW();
-    return () => { cancelled = true; };
+
+    // Cold start — no cache at all, show loading and fetch
+    fetchAndUpdate(true);
   }, []);
+
+  async function fetchAndUpdate(showLoading) {
+    let cancelled = false;
+    if (showLoading) setLoading(true);
+
+    try {
+      const res  = await fetch(`${BASE}/current-gw`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error("non-ok");
+      const data = await res.json();
+      if (!cancelled && data.gameweek) {
+        const fresh = {
+          gw:           data.gameweek,
+          deadlineTime: data.deadline_time || null,
+          gwFinished:   data.gw_finished   || false,
+        };
+        _memCache = fresh;
+        writeLocalStorage(fresh);
+        setGw(fresh.gw);
+        setDeadlineTime(fresh.deadlineTime);
+        setGwFinished(fresh.gwFinished);
+      }
+    } catch (_) {
+      // Backend unreachable — keep whatever state we already have
+    } finally {
+      if (!cancelled && showLoading) setLoading(false);
+    }
+
+    return () => { cancelled = true; };
+  }
 
   return { gw, loading, deadlineTime, gwFinished };
 }
