@@ -9,27 +9,27 @@ A full-stack Fantasy Premier League assistant powered by a LightGBM prediction m
 ## 📸 Screenshots
 
 **Home — Decision Intelligence Engine**
-![Home](screenshots/Screenshot_2026-06-12_152359.png)
+![Home](fpl-app/screenshots/Screenshot_2026-06-12_152359.png)
 > LightGBM model (MAE 1.021, 34.7% better than baseline) predicts points for all 817 active FPL players each gameweek.
 
 **My Squad — Pitch View**
-![My Squad](screenshots/Screenshot_2026-06-12_152413.png)
+![My Squad](fpl-app/screenshots/Screenshot_2026-06-12_152413.png)
 > Visual pitch layout with predicted points per player. Captain and vice-captain highlighted. Challenge model mode available.
 
 **Top Picks — LightGBM Rankings**
-![Top Picks](screenshots/Screenshot_2026-06-12_152434.png)
+![Top Picks](fpl-app/screenshots/Screenshot_2026-06-12_152434.png)
 > All 817 players ranked by predicted GW points. Filterable by position and max price.
 
 **Optimal XI — ILP Squad Builder**
-![Optimal XI](screenshots/Screenshot_2026-06-12_152457.png)
+![Optimal XI](fpl-app/screenshots/Screenshot_2026-06-12_152457.png)
 > 2-phase ILP optimization: selects best 15-man squad within budget, then picks best starting 11. Constraints: 2 GK · 5 DEF · 5 MID · 3 FWD · max 3 per club.
 
 **Transfer Planner**
-![Transfers](screenshots/Screenshot_2026-06-12_152522.png)
+![Transfers](fpl-app/screenshots/Screenshot_2026-06-12_152522.png)
 > Load your FPL squad via Team ID. Hit-aware ILP recommends optimal transfers respecting free transfer count and −4pt penalty.
 
 **Model Insights**
-![Model Insights](screenshots/Screenshot_2026-06-12_152543.png)
+![Model Insights](fpl-app/screenshots/Screenshot_2026-06-12_152543.png)
 > Full model comparison (Baseline → Linear Regression → Random Forest → LightGBM → Optuna-tuned). Feature importance, pipeline breakdown, and training details.
 
 ---
