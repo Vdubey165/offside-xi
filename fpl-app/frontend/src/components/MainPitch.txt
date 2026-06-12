@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useGameweek } from "../hooks/useGameweek";
 import { api } from "../api/client";
 import { useAuth } from "../hooks/useAuth.jsx";
-import { getSnapshot } from "../utils/squadPrefetch"; // NEW
 
 // ─── TEAM KIT COLORS ──────────────────────────────────────────────────────────
 const KITS = {
@@ -156,6 +155,7 @@ function Card({ p, small = false, challengeMode = false, isUserTeam = false, onS
           </div>
           {p.is_captain && <div style={{ marginTop: 7, fontSize: 10, color: "#F5C518", fontWeight: 800, textAlign: "center", fontFamily: "monospace" }}>CAPTAIN — 2x POINTS</div>}
           {p.is_vice_captain && <div style={{ marginTop: 7, fontSize: 10, color: "rgba(255,255,255,0.7)", fontWeight: 800, textAlign: "center", fontFamily: "monospace" }}>VICE CAPTAIN</div>}
+          {/* Arrow — points up if tooltip is below, points down if tooltip is above */}
           <div style={{ position: "absolute", ...(tooltipBelow ? { top: -5, borderLeft: "1px solid rgba(5,240,255,0.18)", borderTop: "1px solid rgba(5,240,255,0.18)" } : { bottom: -5, borderRight: "1px solid rgba(5,240,255,0.18)", borderBottom: "1px solid rgba(5,240,255,0.18)" }), left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 8, height: 8, background: "#111827" }}/>
         </div>
       )}
@@ -193,6 +193,7 @@ function SkeletonRow({ count }) {
 function SwapModal({ player, positionPlayers, loadingPlayers, userTeam, remainingBudget, onConfirm, onClose }) {
   const [search, setSearch] = useState("");
   const outgoingPrice = parseFloat(player.price) || 0;
+  // Max they can spend = outgoing player's price + whatever budget they have left in the bank
   const affordableCeiling = outgoingPrice + remainingBudget;
 
   const currentTeamIds = new Set([
@@ -218,6 +219,8 @@ function SwapModal({ player, positionPlayers, loadingPlayers, userTeam, remainin
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }} onClick={onClose}>
       <div className="swap-modal-inner" style={{ background: "linear-gradient(135deg,#06101c,#0e1d30)", borderRadius: 16, width: "100%", maxWidth: 460, border: "1px solid rgba(5,240,255,0.2)", boxShadow: "0 24px 80px rgba(0,0,0,0.9)", overflow: "hidden", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
         <div style={{ padding: "14px 18px", background: "rgba(5,240,255,0.06)", borderBottom: "1px solid rgba(5,240,255,0.12)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Replace</div>
@@ -229,6 +232,8 @@ function SwapModal({ player, positionPlayers, loadingPlayers, userTeam, remainin
           </div>
           <button onClick={onClose} style={{ background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", width: 32, height: 32, borderRadius: "50%", color: "rgba(255,255,255,0.6)", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
+
+        {/* Budget bar */}
         <div style={{ padding: "8px 18px", background: "rgba(0,0,0,0.25)", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
             <Icon.Pound size={12} color="#ebff00" />
@@ -243,12 +248,16 @@ function SwapModal({ player, positionPlayers, loadingPlayers, userTeam, remainin
             )}
           </div>
         </div>
+
+        {/* Search */}
         <div style={{ padding: "10px 18px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
             placeholder={`Search ${player.position} players within £${affordableCeiling.toFixed(1)}m...`}
             style={{ width: "100%", boxSizing: "border-box", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(5,240,255,0.2)", borderRadius: 8, padding: "8px 12px", color: "#fff", fontSize: 13, fontFamily: "monospace", outline: "none" }}
           />
         </div>
+
+        {/* List */}
         <div style={{ overflowY: "auto", flex: 1 }}>
           {loadingPlayers ? (
             <div style={{ padding: "40px 20px", textAlign: "center", color: "rgba(255,255,255,0.4)", fontFamily: "monospace", fontSize: 12 }}>Loading {player.position} players...</div>
@@ -291,6 +300,8 @@ function SwapModal({ player, positionPlayers, loadingPlayers, userTeam, remainin
             );
           })}
         </div>
+
+        {/* Footer */}
         <div style={{ padding: "8px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)", display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", fontFamily: "monospace" }}>{candidates.length} {player.position} options shown</span>
           {tooExpensive > 0 && <span style={{ fontSize: 10, color: "rgba(255,120,120,0.5)", fontFamily: "monospace" }}>{tooExpensive} hidden (over budget)</span>}
@@ -325,11 +336,14 @@ function useCountdown(deadlineTime) {
 }
 
 // ─── CHALLENGE STRIP ──────────────────────────────────────────────────────────
+// Pre-GW: countdown to deadline + "result revealed after GW ends"
+// Post-GW: actual scoreboard from history
 function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
   const countdown = useCountdown(deadlineTime);
   const deadlinePassed = deadlineTime ? Date.now() > new Date(deadlineTime) : false;
   const thisGwResult = history.find(h => h.gw === gw);
 
+  // Post-GW with result — show real scoreboard
   if (gwFinished && history.length > 0) {
     const modelTotal = history.reduce((a, h) => a + (h.model_pts || 0), 0);
     const userTotal  = history.reduce((a, h) => a + (h.user_pts  || 0), 0);
@@ -359,6 +373,7 @@ function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
     );
   }
 
+  // GW finished but still calculating
   if (gwFinished && history.length === 0) {
     return (
       <div style={{ background: "rgba(5,240,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "9px 18px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
@@ -368,6 +383,7 @@ function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
     );
   }
 
+  // Pre-GW — countdown strip, no scores shown
   return (
     <div style={{ background: "rgba(0,0,0,0.28)", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "9px 18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -411,23 +427,14 @@ export default function MainPitch() {
   const [remainingBudget,setRemainingBudget]= useState(0);
 
   useEffect(() => {
-    if (!gw) return;
-
     async function load() {
       try {
         setLoading(true); setError(null);
-
-        // ── KEY FIX: run snapshot fetch and challenge-state fetch in PARALLEL ──
-        // getSnapshot(gw) resolves from the prefetch cache — usually instant.
-        // api.loadChallengeState fires at the same time instead of waiting.
-        const [data, serverState] = await Promise.all([
-          getSnapshot(gw).then(snap => snap ?? api.optimizeSquad(100)),
-          token
-            ? api.loadChallengeState(token).catch(() => null)
-            : Promise.resolve(null),
-        ]);
-        // ──────────────────────────────────────────────────────────────────────
-
+        // Use snapshot for current GW — ensures AI squad is locked before retrain
+        // POST creates snapshot if it doesn't exist, returns existing if it does
+        const BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:8000") + "/api";
+        const snapRes = await fetch(`${BASE}/squad/snapshot/${gw}`, { method: "POST" });
+        const data = snapRes.ok ? await snapRes.json() : await api.optimizeSquad(100);
         setSquad(data);
         const remaining = parseFloat((100 - (parseFloat(data.total_cost)||0)).toFixed(1));
         setRemainingBudget(remaining);
@@ -439,23 +446,27 @@ export default function MainPitch() {
             byName[p.web_name] = p;
           });
           const heal = (players) => players.map(p => {
-            if (p.player_id) return p;
+            if (p.player_id) return p; // already has it
             const fresh = byName[p.web_name];
             return fresh ? { ...p, player_id: fresh.player_id } : p;
           });
           return { ...team, starters: heal(team.starters||[]), bench: heal(team.bench||[]) };
         };
 
-        // Try server state first (cross-browser), then localStorage fallback
+        // Try server first (cross-browser), then localStorage fallback
         let restored = false;
-        if (serverState?.found && serverState.gw === gw) {
-          const healedTeam = healTeam(serverState.team, data);
-          setUserTeam(healedTeam);
-          setRemainingBudget(serverState.remaining ?? remaining);
-          setChallenged(true);
-          restored = true;
+        if (token) {
+          try {
+            const serverState = await api.loadChallengeState(token);
+            if (serverState.found && serverState.gw === gw) {
+              const healedTeam = healTeam(serverState.team, data);
+              setUserTeam(healedTeam);
+              setRemainingBudget(serverState.remaining ?? remaining);
+              setChallenged(true);
+              restored = true;
+            }
+          } catch(_) {}
         }
-
         if (!restored) {
           const saved = localStorage.getItem("offside_user_team");
           if (saved) {
@@ -473,15 +484,10 @@ export default function MainPitch() {
 
         const savedHist = localStorage.getItem("offside_challenge_history");
         if (savedHist) { try { setHistory(JSON.parse(savedHist)); } catch(_) {} }
-
-      } catch(e) {
-        setError(e.message || "Failed to load squad");
-      } finally {
-        setLoading(false);
-      }
+      } catch(e) { setError(e.message||"Failed to load squad"); }
+      finally { setLoading(false); }
     }
-
-    load();
+    if (gw) load();
   }, [gw, token]);
 
   // Fetch position players when modal opens
@@ -506,11 +512,21 @@ export default function MainPitch() {
   // ── Score the GW when it finishes ──────────────────────────────────────────
   useEffect(() => {
     if (!gwFinished || !gw || !challenged || !squad || !userTeam) return;
+
+    // Check if already scored this GW
     const alreadyScored = history.some(h => h.gw === gw);
     if (alreadyScored) return;
 
-    const modelPlayerIds = [...squad.starters.map(p => p.player_id), ...squad.bench.map(p => p.player_id)].filter(Boolean);
-    const userPlayerIds  = [...userTeam.starters.map(p => p.player_id), ...userTeam.bench.map(p => p.player_id)].filter(Boolean);
+    const modelPlayerIds = [
+      ...squad.starters.map(p => p.player_id),
+      ...squad.bench.map(p => p.player_id),
+    ].filter(Boolean);
+
+    const userPlayerIds = [
+      ...userTeam.starters.map(p => p.player_id),
+      ...userTeam.bench.map(p => p.player_id),
+    ].filter(Boolean);
+
     const allIds = [...new Set([...modelPlayerIds, ...userPlayerIds])];
     if (!allIds.length) return;
 
@@ -523,11 +539,16 @@ export default function MainPitch() {
 
       const model_pts = calcActual(squad.starters);
       const user_pts  = calcActual(userTeam.starters);
+
       const entry = { gw, model_pts, user_pts, scored_at: Date.now() };
       const newHistory = [...history, entry];
       setHistory(newHistory);
       localStorage.setItem("offside_challenge_history", JSON.stringify(newHistory));
-      const swaps = userTeam.starters.filter(p => p._swapped).map(p => p.web_name);
+
+      // Save to MongoDB if logged in
+      const swaps = userTeam.starters
+        .filter(p => p._swapped)
+        .map(p => p.web_name);
       saveChallengeResult(gw, model_pts, user_pts, swaps);
     }).catch(() => {});
   }, [gwFinished, gw, challenged, squad, userTeam]);
@@ -575,6 +596,8 @@ export default function MainPitch() {
   const displaySquad = mode==="user" && userTeam ? userTeam : squad;
   const grouped = displaySquad ? { GK: displaySquad.starters.filter(p=>p.position==="GK"), DEF: displaySquad.starters.filter(p=>p.position==="DEF"), MID: displaySquad.starters.filter(p=>p.position==="MID"), FWD: displaySquad.starters.filter(p=>p.position==="FWD") } : null;
   const calcPts = s => s ? s.starters.reduce((a,p) => a+(p.is_captain?p.predicted_pts*2:p.predicted_pts), 0) : 0;
+  const modelPts = squad ? calcPts(squad) : 0;
+  const userPts  = userTeam ? calcPts(userTeam) : 0;
   const totalPredicted = displaySquad ? calcPts(displaySquad).toFixed(1) : "—";
   const swapCount = userTeam ? userTeam.starters.filter(p=>p._swapped).length : 0;
 
