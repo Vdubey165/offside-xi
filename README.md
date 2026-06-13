@@ -9,7 +9,6 @@ A full-stack Fantasy Premier League assistant powered by a LightGBM prediction m
 ## 📸 Screenshots
 
 **Home — Decision Intelligence Engine**
-
 ![Home](fpl-app/screenshots/Screenshot%202026-06-12%20152359.png)
 > LightGBM model (MAE 1.021, 34.7% better than baseline) predicts points for all 817 active FPL players each gameweek.
 
@@ -31,8 +30,6 @@ A full-stack Fantasy Premier League assistant powered by a LightGBM prediction m
 
 **Model Insights**
 ![Model Insights](fpl-app/screenshots/Screenshot%202026-06-12%20152543.png)
-=======
-
 > Full model comparison (Baseline → Linear Regression → Random Forest → LightGBM → Optuna-tuned). Feature importance, pipeline breakdown, and training details.
 
 ---
@@ -57,35 +54,37 @@ A full-stack Fantasy Premier League assistant powered by a LightGBM prediction m
 ```
 FPL-FINAK/
 ├── Data/
-│   ├── data/                    # CSVs (player_predictions.csv etc.)
-│   └── models/                  # fpl_model.pkl
-├── FPL_Pipeline_Fixed.ipynb     # Training pipeline
+│   ├── data/                        # CSVs (player_predictions.csv etc.)
+│   └── models/                      # fpl_model.pkl
+├── FPL_Pipeline_Fixed.ipynb         # Training pipeline
 ├── fpl-app/
-<<<<<<< HEAD
 │   ├── .github/
 │   ├── backend/
-│   │   ├── main.py              # FastAPI app
+│   │   ├── main.py                  # FastAPI entry point
+│   │   ├── config.py                # Env vars, paths, constants
+│   │   ├── db.py                    # MongoDB connection
+│   │   ├── dependencies.py          # JWT auth dependency
+│   │   ├── models/
+│   │   │   └── schemas.py           # Pydantic request/response schemas
+│   │   ├── services/
+│   │   │   ├── predictions.py       # Model loading + prediction cache
+│   │   │   ├── ilp.py               # ILP squad & transfer optimizer
+│   │   │   ├── gw_cache.py          # Gameweek MongoDB TTL cache
+│   │   │   └── warmup.py            # Background startup warmup
+│   │   ├── routers/
+│   │   │   ├── auth.py              # /api/auth/*, /api/user/*
+│   │   │   ├── squad.py             # /api/squad/*, /api/transfers/*
+│   │   │   ├── fpl.py               # /api/players, /api/fpl/*, /api/pl/*
+│   │   │   └── isl.py               # /api/isl/*
 │   │   └── requirements.txt
 │   ├── frontend/
 │   │   ├── src/
 │   │   ├── index.html
 │   │   ├── package.json
 │   │   └── vite.config.js
-│   └── screenshots/             # UI screenshots
-├── app.py                       # Legacy Streamlit app
+│   └── screenshots/
+├── app.py                           # Legacy Streamlit app
 └── README.md
-=======
-│   ├── backend/
-│   │   ├── main.py              # FastAPI app
-│   │   └── requirements.txt
-│   └── frontend/
-│       ├── src/
-│       ├── index.html
-│       ├── package.json
-│       └── vite.config.js
-├── screenshots/                 # UI screenshots
-└── app.py                       # Legacy Streamlit app
->>>>>>> cb2b48a6f257be03f54d34bd84b859671395c1e2
 ```
 
 ---
@@ -107,7 +106,18 @@ uvicorn main:app --reload --port 8000
 
 API runs at `http://localhost:8000` · Docs at `http://localhost:8000/docs`
 
-### 2. Frontend
+### 2. Environment variables
+
+Create a `.env` file in `fpl-app/backend/`:
+
+```env
+MONGO_URI=your_mongodb_atlas_uri
+JWT_SECRET=your_secret_here
+RETRAIN_SECRET=your_retrain_secret_here
+API_FOOTBALL_KEY=your_api_football_key   # optional, for ISL data
+```
+
+### 3. Frontend
 
 ```bash
 cd fpl-app/frontend
@@ -124,17 +134,29 @@ Frontend runs at `http://localhost:5173`
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/api/health` | Health check |
+| `GET` | `/api/warmup` | Full stack warmup — point UptimeRobot here |
 | `GET` | `/api/players` | Top picks with position/price filters |
 | `GET` | `/api/model/insights` | Feature importance + model comparison |
 | `POST` | `/api/squad/optimize` | ILP optimal squad generation |
+| `GET` | `/api/squad/snapshot/{gw}` | Locked AI squad for a gameweek |
 | `GET` | `/api/transfers/squad/{team_id}` | Fetch live FPL squad by Team ID |
 | `POST` | `/api/transfers/optimize` | Hit-aware transfer recommendations |
+| `GET` | `/api/current-gw` | Current gameweek (MongoDB cached, 30-min TTL) |
+| `GET` | `/api/fpl/fixtures` | Fixtures for current or specified GW |
+| `GET` | `/api/fpl/news` | Latest FPL injury and squad news |
+| `GET` | `/api/pl/table` | Live Premier League table |
+| `POST` | `/api/auth/register` | Register new user |
+| `POST` | `/api/auth/login` | Login and receive JWT |
+| `GET` | `/api/user/profile` | Get user profile + challenge history |
+| `POST` | `/api/retrain` | Refresh predictions from live FPL data |
 
 ---
 
 ## 🔄 Updating Predictions
 
-Each gameweek, re-run the notebook (Sections 2.3 → 5) to regenerate `player_predictions.csv`. The backend picks up changes automatically on the next request — no restart needed.
+Each gameweek, either:
+- Re-run `FPL_Pipeline_Fixed.ipynb` (Sections 2.3 → 5) to regenerate `player_predictions.csv`, or
+- Hit `POST /api/retrain?secret=<RETRAIN_SECRET>` to refresh live from the FPL API without touching the notebook.
 
 ---
 
@@ -144,6 +166,7 @@ Each gameweek, re-run the notebook (Sections 2.3 → 5) to regenerate `player_pr
 - **Backend:** FastAPI, Python
 - **ML:** LightGBM, Optuna (hyperparameter tuning)
 - **Optimization:** PuLP / CBC (ILP)
+- **Database:** MongoDB Atlas (predictions cache, user auth, squad snapshots)
 - **Data:** FPL Official API, rolling GW history CSVs
 - **Deployment:** Vercel (frontend) · Render (backend)
 
@@ -151,8 +174,4 @@ Each gameweek, re-run the notebook (Sections 2.3 → 5) to regenerate `player_pr
 
 ## 👤 Author
 
-<<<<<<< HEAD
 **Vaibhav Dubey** — [github.com/Vdubey165](https://github.com/Vdubey165)
-=======
-**Vaibhav Dubey** — [github.com/Vdubey165](https://github.com/Vdubey165)
->>>>>>> cb2b48a6f257be03f54d34bd84b859671395c1e2
