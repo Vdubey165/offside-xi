@@ -395,7 +395,7 @@ function ChallengeStrip({ gwFinished, deadlineTime, history, gw }) {
 // ─── MAIN PITCH ───────────────────────────────────────────────────────────────
 export default function MainPitch() {
   const { gw, loading: gwLoading, deadlineTime, gwFinished } = useGameweek();
-  const { saveChallengeResult, token } = useAuth();
+  const { saveChallengeResult, token, loading: authLoading } = useAuth();
   const gwLabel = gwLoading ? "···" : gw ? `GAMEWEEK ${gw}` : "PREMIER LEAGUE";
 
   const [squad,          setSquad]          = useState(null);
@@ -411,7 +411,7 @@ export default function MainPitch() {
   const [remainingBudget,setRemainingBudget]= useState(0);
 
   useEffect(() => {
-    if (!gw) return;
+    if (!gw || authLoading) return;
 
     async function load() {
       try {
@@ -482,7 +482,7 @@ export default function MainPitch() {
     }
 
     load();
-  }, [gw, token]);
+  }, [gw, token,authLoading]);
 
   // Fetch position players when modal opens
   useEffect(() => {

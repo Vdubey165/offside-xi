@@ -1,7 +1,9 @@
 """
 FPL AI Decision Engine — FastAPI Backend
-Fix: robust path resolution, debug endpoint, live-API fallback when
-     model/CSV files are missing (notebook not yet run).
+Fixes applied:
+  1. GW cached in MongoDB (30-min TTL) — stops hitting FPL API on every request
+  2. Startup background thread — pre-loads predictions + runs ILP on wake
+  3. /api/warmup endpoint — point UptimeRobot HERE instead of /api/health
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +15,8 @@ import numpy as np
 import requests
 import os
 import json
+import threading          # NEW
+import time as _time
 
 # ── Optional heavy imports (graceful fallback if not installed) ────────────────
 try:
@@ -41,7 +45,8 @@ MODELS_DIR = Path(os.environ.get("FPL_MODELS_DIR", str(ROOT_DIR / "Data" / "mode
 MODEL_PATH = MODELS_DIR / "fpl_model.pkl"
 PREDS_PATH = DATA_DIR   / "player_predictions.csv"
 
-app = FastAPI(title="FPL AI Decision Engine", version="1.1.0")
+# ── App + CORS ─────────────────────────────────────────────────────────────────
+app = FastAPI(title="FPL AI Decision Engine", version="1.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -63,11 +68,194 @@ FEATURES = [
     "avg_bps_last3", "is_home", "value", "avg_fixture_difficulty",
 ]
 
-# ── Cache ──────────────────────────────────────────────────────────────────────
+# ── In-memory caches ───────────────────────────────────────────────────────────
 _model       = None
 _predictions = None
 
+# In-memory cache for ISL data
+_isl_cache: dict = {}
+ISL_CACHE_TTL   = 3600
+ISL_LEAGUE_ID   = 323
+ISL_SEASON      = 2024
 
+# ── Startup warm-up flag ───────────────────────────────────────────────────────
+_warmup_done = False
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FIX 1 — GW CACHE IN MONGODB (30-min TTL)
+# Stops hitting FPL API on every /api/current-gw request
+# ══════════════════════════════════════════════════════════════════════════════
+
+GW_CACHE_TTL_SECONDS = 1800  # 30 minutes
+
+def _fetch_gw_from_fpl() -> dict:
+    """Raw fetch from FPL API — only called when cache is stale."""
+    r      = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
+    events = pd.DataFrame(r["events"])
+
+    current = events[events["is_current"] == True]
+    if len(current):
+        row = current.iloc[0]
+    else:
+        finished = events[events["finished"] == True]
+        row = finished.loc[finished["id"].idxmax()] if len(finished) else events.iloc[0]
+
+    return {
+        "gameweek":      int(row["id"]),
+        "deadline_time": row.get("deadline_time") or None,
+        "gw_finished":   bool(row.get("finished", False)),
+    }
+
+
+def get_current_gw_cached() -> dict:
+    """
+    Returns current GW data.
+    Tries MongoDB cache first (30-min TTL).
+    Falls back to live FPL API and updates cache.
+    """
+    try:
+        db  = get_db()
+        doc = db.gw_cache.find_one({"_id": "current_gw"})
+        if doc:
+            age = _time.time() - doc.get("cached_at", 0)
+            if age < GW_CACHE_TTL_SECONDS:
+                return {
+                    "gameweek":      doc["gameweek"],
+                    "deadline_time": doc.get("deadline_time"),
+                    "gw_finished":   doc.get("gw_finished", False),
+                }
+    except Exception:
+        pass  # DB unavailable — fall through to live fetch
+
+    # Cache miss or stale — fetch fresh
+    data = _fetch_gw_from_fpl()
+
+    try:
+        db = get_db()
+        db.gw_cache.replace_one(
+            {"_id": "current_gw"},
+            {"_id": "current_gw", "cached_at": _time.time(), **data},
+            upsert=True,
+        )
+    except Exception:
+        pass  # Non-fatal — still return fresh data
+
+    return data
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FIX 2 — STARTUP PRE-WARM (background thread on Render wake)
+# Loads predictions + pre-builds ILP snapshot so first user never waits
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _background_warmup():
+    """
+    Runs in a daemon thread immediately on startup.
+    1. Pre-loads predictions into memory
+    2. Fetches + caches current GW
+    3. Runs ILP optimizer and saves snapshot to MongoDB
+    So when the first real user arrives, everything is already hot.
+    """
+    global _warmup_done
+    try:
+        print("[WARMUP] Starting background warm-up...")
+
+        # Step 1: Pre-load predictions
+        print("[WARMUP] Loading predictions...")
+        get_predictions()
+        print("[WARMUP] Predictions loaded.")
+
+        # Step 2: Cache current GW
+        print("[WARMUP] Fetching current GW...")
+        gw_data = get_current_gw_cached()
+        gw      = gw_data["gameweek"]
+        print(f"[WARMUP] Current GW: {gw}")
+
+        # Step 3: Pre-build squad snapshot if not already cached
+        try:
+            db       = get_db()
+            existing = db.squad_snapshots.find_one({"gw": gw})
+            if existing:
+                print(f"[WARMUP] Snapshot for GW{gw} already exists — skipping ILP.")
+            else:
+                print(f"[WARMUP] Running ILP optimizer for GW{gw}...")
+                snapshot_squad(gw)
+                print(f"[WARMUP] Snapshot for GW{gw} saved to MongoDB.")
+        except Exception as e:
+            print(f"[WARMUP] Snapshot pre-build failed (non-fatal): {e}")
+
+        _warmup_done = True
+        print("[WARMUP] Background warm-up complete. All endpoints are hot.")
+
+    except Exception as e:
+        print(f"[WARMUP] Warm-up failed (non-fatal): {e}")
+        _warmup_done = True  # Mark done even on failure so status reflects reality
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Launch background warm-up thread immediately when Render starts the app."""
+    t = threading.Thread(target=_background_warmup, daemon=True)
+    t.start()
+    print("[STARTUP] Background warm-up thread launched.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FIX 3 — /api/warmup ENDPOINT
+# Point UptimeRobot at THIS instead of /api/health
+# It actively exercises the full stack: predictions + GW + snapshot
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/warmup")
+def warmup():
+    """
+    Point UptimeRobot at this endpoint (not /api/health).
+    Actively warms: predictions cache, GW cache, and snapshot check.
+    Returns status of each component so you can monitor health too.
+    """
+    status = {
+        "predictions_loaded": False,
+        "gw":                 None,
+        "snapshot_exists":    False,
+        "warmup_done":        _warmup_done,
+    }
+
+    # Warm predictions
+    try:
+        preds = get_predictions()
+        status["predictions_loaded"] = len(preds) > 0
+    except Exception as e:
+        status["predictions_error"] = str(e)
+
+    # Warm GW cache
+    try:
+        gw_data      = get_current_gw_cached()
+        status["gw"] = gw_data["gameweek"]
+    except Exception as e:
+        status["gw_error"] = str(e)
+
+    # Check/build snapshot
+    if status["gw"]:
+        try:
+            db       = get_db()
+            existing = db.squad_snapshots.find_one({"gw": status["gw"]})
+            if existing:
+                status["snapshot_exists"] = True
+            else:
+                # Snapshot missing — build it now (UptimeRobot keeps hitting this
+                # so it'll build within one ping cycle if somehow lost)
+                snapshot_squad(status["gw"])
+                status["snapshot_exists"] = True
+                status["snapshot_built_now"] = True
+        except Exception as e:
+            status["snapshot_error"] = str(e)
+
+    status["ok"] = status["predictions_loaded"] and status["gw"] is not None
+    return status
+
+
+# ── Model loading ──────────────────────────────────────────────────────────────
 def get_model():
     global _model
     if _model is not None:
@@ -78,9 +266,7 @@ def get_model():
         raise HTTPException(
             500,
             f"Model file not found at '{MODEL_PATH}'. "
-            "You need to run your Jupyter notebook (FPL_Pipeline_Fixed.ipynb) "
-            "first to generate fpl_model.pkl. "
-            f"Expected location: {MODEL_PATH}"
+            "Run FPL_Pipeline_Fixed.ipynb first to generate fpl_model.pkl."
         )
     _model = joblib.load(MODEL_PATH)
     return _model
@@ -131,10 +317,10 @@ def _fetch_live_fpl_data() -> pd.DataFrame:
     pos_map   = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 
     df = elements.copy()
-    df["player_id"]    = df["id"]
-    df["team_name"]    = df["team"].map(team_map)
-    df["position"]     = df["element_type"].map(pos_map)
-    df["price"]        = df["now_cost"] / 10
+    df["player_id"]     = df["id"]
+    df["team_name"]     = df["team"].map(team_map)
+    df["position"]      = df["element_type"].map(pos_map)
+    df["price"]         = df["now_cost"] / 10
     df["predicted_pts"] = pd.to_numeric(df["points_per_game"], errors="coerce").fillna(0).round(2)
 
     gp = pd.to_numeric(df.get("minutes", 0), errors="coerce").fillna(0) / 90
@@ -364,28 +550,11 @@ def debug():
     }
 
 
+# ── PATCHED: /api/current-gw now uses MongoDB cache ───────────────────────────
 @app.get("/api/current-gw")
 def current_gw():
     try:
-        r      = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
-        events = pd.DataFrame(r["events"])
-
-        current = events[events["is_current"] == True]
-        if len(current):
-            row = current.iloc[0]
-        else:
-            finished = events[events["finished"] == True]
-            row = finished.loc[finished["id"].idxmax()] if len(finished) else events.iloc[0]
-
-        gw           = int(row["id"])
-        deadline     = row.get("deadline_time") or None
-        gw_finished  = bool(row.get("finished", False))
-
-        return {
-            "gameweek":      gw,
-            "deadline_time": deadline,
-            "gw_finished":   gw_finished,
-        }
+        return get_current_gw_cached()
     except Exception as e:
         raise HTTPException(500, f"Could not fetch current gameweek: {e}")
 
@@ -396,9 +565,6 @@ def get_gw_points(gw: int, player_ids: str = ""):
         if not player_ids:
             return {}
         ids = [int(x) for x in player_ids.split(",") if x.strip()]
-        r   = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
-        elements = pd.DataFrame(r["elements"])
-
         live = requests.get(f"https://fantasy.premierleague.com/api/event/{gw}/live/", timeout=10).json()
         live_df = pd.DataFrame([
             {"id": e["id"], "points": e["stats"]["total_points"]}
@@ -515,17 +681,17 @@ def fetch_fpl_squad(team_id: int):
         events_df = pd.DataFrame(boot["events"])
         current_rows = events_df[events_df["is_current"] == True]
         if len(current_rows):
-            current_gw = int(current_rows["id"].iloc[0])
+            current_gw_val = int(current_rows["id"].iloc[0])
         else:
-            finished   = events_df[events_df["finished"] == True]
-            current_gw = int(finished["id"].max()) if len(finished) else 1
+            finished       = events_df[events_df["finished"] == True]
+            current_gw_val = int(finished["id"].max()) if len(finished) else 1
 
         entry_r = requests.get(f"{BASE}/entry/{team_id}/", timeout=10).json()
         if "detail" in entry_r:
             raise HTTPException(404, f"Team ID {team_id} not found.")
 
-        entry_gw = entry_r.get("current_event") or current_gw
-        picks_gw = min(current_gw, entry_gw)
+        entry_gw = entry_r.get("current_event") or current_gw_val
+        picks_gw = min(current_gw_val, entry_gw)
         itb      = (entry_r.get("last_deadline_bank") or 0) / 10
         free_tf  = entry_r.get("last_deadline_free_transfers") or 1
 
@@ -1016,13 +1182,13 @@ def retrain_predictions(secret: str = ""):
         pos_map  = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 
         cur_rows   = events[events["is_current"] == True]
-        current_gw = int(cur_rows["id"].iloc[0]) if len(cur_rows) else int(
+        current_gw_val = int(cur_rows["id"].iloc[0]) if len(cur_rows) else int(
             events[events["finished"] == True]["id"].max()
         )
 
         all_rows = []
-        gw_start = max(1, current_gw - 4)
-        for gw in range(gw_start, current_gw + 1):
+        gw_start = max(1, current_gw_val - 4)
+        for gw in range(gw_start, current_gw_val + 1):
             try:
                 live = requests.get(f"{FPL_BASE}/event/{gw}/live/", timeout=12).json()
                 for el in live.get("elements", []):
@@ -1080,7 +1246,7 @@ def retrain_predictions(secret: str = ""):
         df = el_df.merge(feat_df, on="player_id", how="left")
 
         try:
-            next_gw       = current_gw + 1
+            next_gw       = current_gw_val + 1
             fixtures_r    = requests.get(f"{FPL_BASE}/fixtures/?event={next_gw}", timeout=10).json()
             team_diff_map = {}
             team_home_map = {}
@@ -1131,8 +1297,8 @@ def retrain_predictions(secret: str = ""):
             {
                 "_id":            "latest",
                 "players":        records_out,
-                "gameweek":       current_gw,
-                "next_gameweek":  current_gw + 1,
+                "gameweek":       current_gw_val,
+                "next_gameweek":  current_gw_val + 1,
                 "updated_at":     dt.utcnow().isoformat(),
                 "player_count":   len(records_out),
             },
@@ -1147,13 +1313,20 @@ def retrain_predictions(secret: str = ""):
 
         _predictions = df
 
+        # After retrain, invalidate GW cache and rebuild snapshot for new GW
+        try:
+            db = get_db()
+            db.gw_cache.delete_one({"_id": "current_gw"})
+        except Exception:
+            pass
+
         return {
             "ok":              True,
             "players_updated": len(records_out),
-            "gameweek":        current_gw,
-            "next_gameweek":   current_gw + 1,
-            "gw_data_fetched": list(range(gw_start, current_gw + 1)),
-            "message":         f"Predictions refreshed for GW{current_gw + 1} — {len(records_out)} players updated.",
+            "gameweek":        current_gw_val,
+            "next_gameweek":   current_gw_val + 1,
+            "gw_data_fetched": list(range(gw_start, current_gw_val + 1)),
+            "message":         f"Predictions refreshed for GW{current_gw_val + 1} — {len(records_out)} players updated.",
         }
 
     except HTTPException:
@@ -1390,25 +1563,10 @@ def community_count():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# ISL DATA ENDPOINTS — powered by API-Football (free tier)
-# ISL League ID on API-Football: 323 (Indian Super League)
-# Season: 2024 (for 2024-25 season)
-# Cache results for 1 hour in memory to conserve free-tier quota (100 calls/day)
+# ISL DATA ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-import time as _time
-
-# In-memory cache: { key: { "data": ..., "ts": epoch_seconds } }
-_isl_cache: dict = {}
-ISL_CACHE_TTL   = 3600   # 1 hour
-ISL_LEAGUE_ID   = 323
-ISL_SEASON      = 2024
-
 def _api_football(endpoint: str, params: dict) -> dict:
-    """
-    Call the API-Football v3 endpoint with the key from env var API_FOOTBALL_KEY.
-    Falls back gracefully if the key is missing.
-    """
     api_key = os.environ.get("API_FOOTBALL_KEY", "")
     if not api_key:
         raise HTTPException(503, "API_FOOTBALL_KEY not set on server. ISL live data unavailable.")
@@ -1427,8 +1585,7 @@ def _api_football(endpoint: str, params: dict) -> dict:
 
 
 def _cached(key: str, fetch_fn):
-    """Return cached value if fresh, else call fetch_fn(), cache, and return."""
-    now = _time.time()
+    now   = _time.time()
     entry = _isl_cache.get(key)
     if entry and (now - entry["ts"]) < ISL_CACHE_TTL:
         return entry["data"]
@@ -1439,10 +1596,6 @@ def _cached(key: str, fetch_fn):
 
 @app.get("/api/isl/standings")
 def isl_standings():
-    """
-    Returns the current ISL standings table.
-    Data shape: list of { pos, team, played, win, draw, loss, gf, ga, gd, points, form, logo }
-    """
     def fetch():
         raw = _api_football("standings", {
             "league": ISL_LEAGUE_ID,
@@ -1450,8 +1603,7 @@ def isl_standings():
         })
         try:
             groups = raw["response"][0]["league"]["standings"]
-            # ISL has a single group (index 0)
-            rows = groups[0]
+            rows   = groups[0]
             result = []
             for r in rows:
                 team_info = r.get("team", {})
@@ -1480,10 +1632,6 @@ def isl_standings():
 
 @app.get("/api/isl/top-scorers")
 def isl_top_scorers():
-    """
-    Returns the top 10 ISL scorers for the current season.
-    Data shape: list of { rank, player, team, logo, goals, assists, nationality, photo }
-    """
     def fetch():
         raw = _api_football("players/topscorers", {
             "league": ISL_LEAGUE_ID,
@@ -1491,11 +1639,11 @@ def isl_top_scorers():
         })
         try:
             players = raw.get("response", [])
-            result = []
+            result  = []
             for i, entry in enumerate(players[:10]):
-                p     = entry.get("player", {})
-                stats = entry.get("statistics", [{}])[0]
-                team  = stats.get("team", {})
+                p          = entry.get("player", {})
+                stats      = entry.get("statistics", [{}])[0]
+                team       = stats.get("team", {})
                 goals_info = stats.get("goals", {})
                 result.append({
                     "rank":        i + 1,
@@ -1516,10 +1664,6 @@ def isl_top_scorers():
 
 @app.get("/api/isl/fixtures")
 def isl_fixtures(next: int = 5):
-    """
-    Returns the next N upcoming ISL fixtures (or most recent finished ones).
-    Data shape: list of { date, home, home_logo, away, away_logo, score, status, venue }
-    """
     def fetch():
         raw = _api_football("fixtures", {
             "league": ISL_LEAGUE_ID,
@@ -1528,27 +1672,26 @@ def isl_fixtures(next: int = 5):
         })
         try:
             fixtures = raw.get("response", [])
-            result = []
+            result   = []
             for fx in fixtures:
                 fixture_info = fx.get("fixture", {})
                 teams        = fx.get("teams", {})
                 goals        = fx.get("goals", {})
-                score        = fx.get("score", {})
                 venue        = fixture_info.get("venue", {})
                 status       = fixture_info.get("status", {})
                 result.append({
-                    "id":        fixture_info.get("id"),
-                    "date":      fixture_info.get("date", ""),
-                    "home":      teams.get("home", {}).get("name", ""),
-                    "home_logo": teams.get("home", {}).get("logo", ""),
-                    "away":      teams.get("away", {}).get("name", ""),
-                    "away_logo": teams.get("away", {}).get("logo", ""),
-                    "home_score": goals.get("home"),
-                    "away_score": goals.get("away"),
-                    "status":    status.get("short", "NS"),
+                    "id":          fixture_info.get("id"),
+                    "date":        fixture_info.get("date", ""),
+                    "home":        teams.get("home", {}).get("name", ""),
+                    "home_logo":   teams.get("home", {}).get("logo", ""),
+                    "away":        teams.get("away", {}).get("name", ""),
+                    "away_logo":   teams.get("away", {}).get("logo", ""),
+                    "home_score":  goals.get("home"),
+                    "away_score":  goals.get("away"),
+                    "status":      status.get("short", "NS"),
                     "status_long": status.get("long", "Not Started"),
-                    "venue":     venue.get("name", ""),
-                    "city":      venue.get("city", ""),
+                    "venue":       venue.get("name", ""),
+                    "city":        venue.get("city", ""),
                 })
             return result
         except (KeyError, IndexError, TypeError) as e:
