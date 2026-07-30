@@ -1,0 +1,66 @@
+name: Full Model Retrain
+
+on:
+  schedule:
+    # 1st of every month, 03:00 UTC. Cheap enough to just let it run
+    # year-round — it self-skips via MIN_TRAINING_ROWS when there isn't
+    # enough new-season data yet (e.g. August, right after kickoff).
+    - cron: "0 3 1 * *"
+
+  workflow_dispatch:
+    inputs:
+      trials:
+        description: "Optuna trials (lower = faster, use ~15 for a quick manual run)"
+        required: false
+        default: "50"
+      force:
+        description: "Force retrain even with few rows (true/false)"
+        required: false
+        default: "false"
+
+jobs:
+  retrain:
+    name: Retrain LightGBM model on latest FPL data
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pandas numpy requests joblib lightgbm optuna scikit-learn
+
+      - name: Run training pipeline
+        run: |
+          python fpl-app/scripts/train_pipeline.py \
+            --data-dir Data/data \
+            --models-dir Data/models \
+            --trials "${{ github.event.inputs.trials || '50' }}" \
+            ${{ github.event.inputs.force == 'true' && '--force' || '' }}
+
+      - name: Commit updated model + predictions
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # -f is required: Data/data/*.csv and Data/models/*.pkl are gitignored
+          # (see .gitignore), so a plain `git add` on these exact paths would
+          # be silently skipped with just a warning — no error, no commit,
+          # and no obvious sign anything went wrong until you notice the
+          # model hasn't updated in months.
+          git add -f Data/models/fpl_model.pkl Data/data/player_predictions.csv \
+                     Data/data/fpl_gameweek_history.csv Data/data/training_rows_*.csv
+          git diff --cached --quiet && echo "No changes (retrain was skipped or output identical)." && exit 0
+          git commit -m "chore: automated model retrain [skip ci]"
+          git push
+
+      # Render (and most PaaS) auto-deploy on push to main if that's configured
+      # for this repo. If you're NOT using git-based auto-deploy, uncomment
+      # this and add a RENDER_DEPLOY_HOOK repo secret (Render dashboard →
+      # your service → Settings → Deploy Hook) so the new model.pkl actually
+      # gets loaded instead of sitting unused in the repo.
+      # - name: Trigger Render redeploy
+      #   run: curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"

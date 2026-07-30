@@ -5,6 +5,8 @@ No FastAPI imports here; this is pure business logic.
 import logging
 import os
 import time as _time
+from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -24,6 +26,39 @@ except ImportError:
 # ── In-memory caches ───────────────────────────────────────────────────────────
 _model       = None
 _predictions = None
+
+
+# ── Season-staleness helpers ─────────────────────────────────────────────────
+# Cached predictions (Mongo doc or CSV) written before this season's GW1
+# deadline belong to a previous season and must never be served as-is —
+# player IDs, team IDs, and rosters can all change between seasons.
+
+def _parse_iso_naive_utc(s: str | None):
+    """Parse an ISO timestamp (with or without trailing 'Z') into a naive UTC
+    datetime so it can be compared against datetime.utcnow()-style values."""
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", ""))
+    except Exception:
+        return None
+
+
+def _season_gw1_deadline(events: list) -> "datetime | None":
+    """The deadline_time of GW1 for whichever season is currently live."""
+    for ev in events or []:
+        if ev.get("id") == 1 and ev.get("deadline_time"):
+            return _parse_iso_naive_utc(ev["deadline_time"])
+    return None
+
+
+def _is_stale_for_new_season(cached_at, gw1_deadline) -> bool:
+    """True only when we can positively confirm the cache predates this
+    season's GW1. If either timestamp is missing, fail open (don't block
+    serving data just because we couldn't determine freshness)."""
+    if cached_at is None or gw1_deadline is None:
+        return False
+    return cached_at < gw1_deadline
 
 
 # ── Model ─────────────────────────────────────────────────────────────────────
@@ -61,9 +96,28 @@ def _load_predictions_from_mongo() -> pd.DataFrame | None:
         doc = db.predictions_cache.find_one({"_id": "latest"})
         if not doc or "players" not in doc:
             return None
+
+        # Fetch bootstrap-static once — used both for the staleness check
+        # and (below) for the live team/status/price enrichment.
+        r = None
+        try:
+            r = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=8).json()
+        except Exception:
+            pass
+
+        gw1_deadline = _season_gw1_deadline(r.get("events", [])) if r else None
+        cached_at    = _parse_iso_naive_utc(doc.get("updated_at"))
+
+        if _is_stale_for_new_season(cached_at, gw1_deadline):
+            logger.warning(
+                "predictions_cache is from a previous season (cached_at=%s, "
+                "this season's GW1 deadline=%s) — discarding instead of serving stale data.",
+                cached_at, gw1_deadline,
+            )
+            return None
+
         df = pd.DataFrame(doc["players"])
         try:
-            r          = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=8).json()
             teams      = pd.DataFrame(r["teams"])
             players    = pd.DataFrame(r["elements"])[["id", "status", "now_cost"]]
             team_map   = teams.set_index("id")["name"].to_dict()
@@ -122,10 +176,28 @@ def get_predictions() -> pd.DataFrame:
         logger.info("Predictions loaded from MongoDB cache.")
         return _predictions
 
+    csv_is_current = True
+    r = None
     if PREDS_PATH.exists():
+        try:
+            r = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
+            gw1_deadline = _season_gw1_deadline(r.get("events", []))
+            csv_mtime    = datetime.utcfromtimestamp(os.path.getmtime(PREDS_PATH))
+            if _is_stale_for_new_season(csv_mtime, gw1_deadline):
+                csv_is_current = False
+                logger.warning(
+                    "player_predictions.csv predates this season's GW1 (mtime=%s, "
+                    "GW1 deadline=%s) — skipping it in favor of live FPL data.",
+                    csv_mtime, gw1_deadline,
+                )
+        except Exception:
+            pass  # can't determine freshness — fail open, use the CSV
+
+    if PREDS_PATH.exists() and csv_is_current:
         df = pd.read_csv(PREDS_PATH)
         try:
-            r          = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
+            if r is None:
+                r = requests.get("https://fantasy.premierleague.com/api/bootstrap-static/", timeout=10).json()
             teams      = pd.DataFrame(r["teams"])
             players    = pd.DataFrame(r["elements"])[["id", "status"]]
             team_map   = teams.set_index("id")["name"].to_dict()

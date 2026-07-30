@@ -252,10 +252,22 @@ def retrain_predictions(secret: str = ""):
         team_map = teams.set_index("id")["name"].to_dict()
         pos_map  = {1: "GK", 2: "DEF", 3: "MID", 4: "FWD"}
 
-        cur_rows       = events[events["is_current"] == True]
-        current_gw_val = int(cur_rows["id"].iloc[0]) if len(cur_rows) else int(
-            events[events["finished"] == True]["id"].max()
-        )
+        cur_rows = events[events["is_current"] == True]
+        if len(cur_rows):
+            current_gw_val = int(cur_rows["id"].iloc[0])
+        else:
+            finished = events[events["finished"] == True]
+            if len(finished):
+                current_gw_val = int(finished["id"].max())
+            elif len(events):
+                # Preseason: no GW finished or current yet (e.g. before season kickoff
+                # in August). Fall back to GW1 instead of crashing on int(NaN).
+                current_gw_val = int(events["id"].min())
+            else:
+                raise HTTPException(
+                    status_code=503,
+                    detail="FPL API returned no events — season data not published yet.",
+                )
 
         all_rows = []
         gw_start = max(1, current_gw_val - 4)
